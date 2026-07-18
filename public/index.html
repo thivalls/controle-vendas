@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav">
+      <div class="nav-group" data-group="inicio">
+        <button type="button" class="nav-group-header">Início</button>
+        <div class="nav-group-items">
+          <button data-tab="dashboard" class="tab-btn active">Dashboard</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="cadastros">
+        <button type="button" class="nav-group-header">Cadastros</button>
+        <div class="nav-group-items">
+          <button data-tab="clientes" class="tab-btn">Clientes</button>
+          <button data-tab="fornecedores" class="tab-btn">Fornecedores</button>
+          <button data-tab="produtos" class="tab-btn">Produtos</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="operacoes">
+        <button type="button" class="nav-group-header">Operações</button>
+        <div class="nav-group-items">
+          <button data-tab="estoque" class="tab-btn">Estoque</button>
+          <button data-tab="vendas" class="tab-btn">Vendas</button>
+          <button data-tab="pedidos" class="tab-btn">Pedidos</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="financeiro">
+        <button type="button" class="nav-group-header">Financeiro</button>
+        <div class="nav-group-items">
+          <button data-tab="caixa" class="tab-btn">Fluxo de Caixa</button>
+          <button data-tab="relatorio" class="tab-btn">Relatório Mensal</button>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+
+      <!-- DASHBOARD -->
+      <section id="tab-dashboard" class="tab-content active">
+        <h2>Dashboard</h2>
+        <p class="itens-label" id="dash-mes-label"></p>
+        <div class="resumo-caixa">
+          <div class="card vendas">Vendas no mês<br><span id="dash-vendas-mes">0</span></div>
+          <div class="card recebido">Valor recebido no mês<br><span id="dash-valor-recebido">R$ 0,00</span></div>
+        </div>
+        <div class="dashboard-graficos">
+          <div class="panel">
+            <h3>Produtos mais vendidos no mês</h3>
+            <div id="dash-produtos-mes" class="lista-barras"></div>
+          </div>
+          <div class="panel">
+            <h3>Produtos mais vendidos no ano</h3>
+            <div id="dash-produtos-ano" class="lista-barras"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLIENTES -->
+      <section id="tab-clientes" class="tab-content">
+        <h2>Clientes</h2>
+        <div class="panel">
+          <form id="form-cliente" class="form-inline">
+            <input type="hidden" name="id">
+            <label class="field field-larga">Nome *
+              <input type="text" name="nome" placeholder="Ex: Maria Silva" required>
+            </label>
+            <label class="field">Telefone
+              <input type="text" name="telefone" placeholder="(11) 99999-0000">
+            </label>
+            <label class="field">E-mail
+              <input type="email" name="email" placeholder="nome@email.com">
+            </label>
+            <label class="field field-larga">Endereço
+              <input type="text" name="endereco" placeholder="Rua, número, bairro">
+            </label>
+            <button type="submit">Salvar</button>
+            <button type="button" id="cancelar-edicao-cliente" class="secundario" style="display:none">Cancelar</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table id="tabela-clientes">
+            <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Endereço</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FORNECEDORES -->
+      <section id="tab-fornecedores" class="tab-content">
+        <h2>Fornecedores</h2>
+        <div class="panel">
+          <form id="form-fornecedor" class="form-inline">
+            <input type="hidden" name="id">
+            <label class="field field-larga">Nome *
+              <input type="text" name="nome" placeholder="Ex: Distribuidora Central" required>
+            </label>
+            <label class="field">Telefone
+              <input type="text" name="telefone" placeholder="(11) 99999-0000">
+            </label>
+            <label class="field">E-mail
+              <input type="email" name="email" placeholder="contato@fornecedor.com">
+            </label>
+            <label class="field field-larga">Endereço
+              <input type="text" name="endereco" placeholder="Rua, número, bairro">
+            </label>
+            <button type="submit">Salvar</button>
+            <button type="button" id="cancelar-edicao-fornecedor" class="secundario" style="display:none">Cancelar</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table id="tabela-fornecedores">
+            <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Endereço</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PRODUTOS -->
+      <section id="tab-produtos" class="tab-content">
+        <h2>Produtos</h2>
+        <div class="panel">
+          <form id="form-produto" class="form-inline">
+            <label class="field field-larga">Nome do produto *
+              <input type="text" name="nome" placeholder="Ex: Camiseta branca P" required>
+            </label>
+            <label class="field">Preço de custo (R$) *
+              <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00" required>
+            </label>
+            <label class="field">Preço de venda (R$) *
+              <input type="number" step="0.01" min="0" name="precoVenda" placeholder="0,00" required>
+            </label>
+            <label class="field">Estoque inicial
+              <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
+            </label>
+            <label class="checkbox-inline"><input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)</label>
+            <button type="submit">Salvar</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table id="tabela-produtos">
+            <thead><tr><th>Nome</th><th>Custo</th><th>Venda</th><th>Estoque</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ESTOQUE -->
+      <section id="tab-estoque" class="tab-content">
+        <h2>Movimentar Estoque</h2>
+        <div class="panel">
+          <form id="form-estoque" class="form-inline">
+            <label class="field field-larga">Produto *
+              <select name="produtoId" required></select>
+            </label>
+            <label class="field">Tipo de movimento
+              <select name="tipo">
+                <option value="entrada">Entrada (comprei mais)</option>
+                <option value="saida">Saída (perda/ajuste)</option>
+              </select>
+            </label>
+            <label class="field field-estreita">Quantidade *
+              <input type="number" step="1" min="1" name="quantidade" placeholder="0" required>
+            </label>
+            <label class="field">Custo total pago (R$)
+              <input type="number" step="0.01" min="0" name="custoTotal" placeholder="0,00 (opcional)">
+            </label>
+            <label class="field field-larga">Motivo
+              <input type="text" name="motivo" placeholder="Ex: Ajuste de contagem (opcional)">
+            </label>
+            <button type="submit">Registrar</button>
+          </form>
+          <p class="dica">Ao registrar uma <strong>entrada</strong>, se informar o custo total pago, isso já lança automaticamente uma saída no fluxo de caixa.</p>
+        </div>
+        <h3>Histórico de movimentações</h3>
+        <div class="table-wrap">
+          <table id="tabela-estoque">
+            <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Motivo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VENDAS -->
+      <section id="tab-vendas" class="tab-content">
+        <h2>Nova Venda</h2>
+        <div class="panel">
+          <form id="form-venda">
+            <div class="form-inline">
+              <label class="field field-larga">Cliente *
+                <select name="clienteId" required></select>
+              </label>
+              <label class="field">Forma de pagamento
+                <input type="text" name="formaPagamento" placeholder="Ex: Pix, dinheiro, cartão (opcional)">
+              </label>
+              <label class="field">Situação do pagamento
+                <select name="statusPagamento">
+                  <option value="pago">Pago agora</option>
+                  <option value="pendente">Pendente (a receber depois)</option>
+                </select>
+              </label>
+              <label class="field" id="campo-previsao-pagamento" style="display:none">Previsão de recebimento
+                <input type="date" name="previsaoPagamento">
+              </label>
+            </div>
+            <p class="itens-label">Produtos da venda</p>
+            <div class="itens-header">
+              <span class="col-produto">Produto</span>
+              <span class="col-quantidade">Quantidade</span>
+              <span class="col-acao"></span>
+            </div>
+            <div id="itens-venda"></div>
+            <button type="button" id="add-item-venda">+ Adicionar produto</button>
+            <div class="total-pedido">Total: <strong id="total-venda">R$ 0,00</strong></div>
+            <button type="submit">Finalizar Venda</button>
+          </form>
+        </div>
+
+        <h3>Vendas realizadas</h3>
+        <div class="panel">
+          <form id="form-filtro-vendas" class="form-inline">
+            <label class="field">Cliente
+              <select name="clienteId"><option value="">Todos os clientes</option></select>
+            </label>
+            <label class="field">Status
+              <select name="status">
+                <option value="">Todos</option>
+                <option value="concluido">Concluído</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label class="field">Situação do pagamento
+              <select name="statusPagamento">
+                <option value="">Todas</option>
+                <option value="pago">Pago</option>
+                <option value="pendente">Pendente</option>
+              </select>
+            </label>
+            <label class="field">Forma de pagamento
+              <select name="formaPagamento"><option value="">Todas</option></select>
+            </label>
+            <label class="field field-estreita">De
+              <input type="date" name="dataInicio">
+            </label>
+            <label class="field field-estreita">Até
+              <input type="date" name="dataFim">
+            </label>
+            <label class="field field-larga">Produtos
+              <select name="produtoIds" multiple size="4"></select>
+            </label>
+            <button type="button" id="limpar-filtro-vendas" class="secundario">Limpar filtros</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table id="tabela-vendas">
+            <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Total</th><th>Status</th><th>Pagamento</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PEDIDOS (compras) -->
+      <section id="tab-pedidos" class="tab-content">
+        <h2>Novo Pedido de Compra</h2>
+        <div class="panel">
+          <form id="form-pedido">
+            <div class="form-inline">
+              <label class="field field-larga">Fornecedor *
+                <select name="fornecedorId" required></select>
+              </label>
+              <label class="field">Nº da nota fiscal
+                <input type="text" name="numeroNotaFiscal" placeholder="Ex: 12345 (opcional)">
+              </label>
+              <label class="field">Data da nota fiscal
+                <input type="date" name="dataNotaFiscal">
+              </label>
+            </div>
+            <p class="itens-label">Produtos do pedido</p>
+            <div class="itens-header">
+              <span class="col-produto">Produto</span>
+              <span class="col-quantidade">Quantidade</span>
+              <span class="col-preco">Preço unitário (R$)</span>
+              <span class="col-acao"></span>
+            </div>
+            <div id="itens-pedido"></div>
+            <button type="button" id="add-item-pedido">+ Adicionar produto</button>
+            <div class="total-pedido">Total: <strong id="total-pedido">R$ 0,00</strong></div>
+            <button type="submit">Finalizar Pedido</button>
+          </form>
+          <p class="dica">Ao finalizar, os produtos entram no estoque, o preço de custo é atualizado com o valor pago e uma saída é lançada no fluxo de caixa.</p>
+        </div>
+
+        <h3>Pedidos realizados</h3>
+        <div class="table-wrap">
+          <table id="tabela-pedidos">
+            <thead><tr><th>#</th><th>Data</th><th>Fornecedor</th><th>Nota Fiscal</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CAIXA -->
+      <section id="tab-caixa" class="tab-content">
+        <h2>Fluxo de Caixa</h2>
+        <div class="resumo-caixa">
+          <div class="card entrada">Total de Entradas<br><span id="total-entradas">R$ 0,00</span></div>
+          <div class="card saida">Total de Saídas<br><span id="total-saidas">R$ 0,00</span></div>
+          <div class="card saldo">Saldo Atual<br><span id="saldo-caixa">R$ 0,00</span></div>
+        </div>
+        <div class="panel">
+          <form id="form-caixa" class="form-inline">
+            <input type="hidden" name="id">
+            <label class="field field-estreita">Tipo
+              <select name="tipo">
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </label>
+            <label class="field">Categoria
+              <input type="text" name="categoria" list="categorias-caixa" placeholder="Ex: Aluguel, Transporte">
+              <datalist id="categorias-caixa">
+                <option value="Compra de mercadoria">
+                <option value="Aluguel">
+                <option value="Embalagem">
+                <option value="Transporte">
+                <option value="Outros">
+              </datalist>
+            </label>
+            <label class="field field-estreita">Valor (R$) *
+              <input type="number" step="0.01" min="0" name="valor" placeholder="0,00" required>
+            </label>
+            <label class="field field-larga">Descrição
+              <input type="text" name="descricao" placeholder="Ex: Aluguel do mês (opcional)">
+            </label>
+            <button type="submit">Lançar</button>
+            <button type="button" id="cancelar-edicao-caixa" class="secundario" style="display:none">Cancelar</button>
+          </form>
+          <p class="dica">Comprou mais mercadoria para revender? Use a categoria <strong>"Compra de mercadoria"</strong> — assim ela não é contada como despesa no Relatório Mensal (o custo do produto só entra no lucro quando ele é vendido).</p>
+        </div>
+        <div class="table-wrap">
+          <table id="tabela-caixa">
+            <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- RELATORIO -->
+      <section id="tab-relatorio" class="tab-content">
+        <h2>Relatório Mensal de Lucro</h2>
+        <div class="panel">
+          <div class="form-inline">
+            <label class="field field-estreita">Mês de referência
+              <input type="month" id="input-mes">
+            </label>
+            <label class="field field-estreita">Visão
+              <select id="select-visao-relatorio">
+                <option value="previsao">Previsão (todas as vendas do mês)</option>
+                <option value="real">Real (só o que já foi pago)</option>
+              </select>
+            </label>
+            <button id="buscar-relatorio">Buscar</button>
+          </div>
+        </div>
+        <div id="relatorio-resultado" class="panel relatorio"></div>
+      </section>
+
+    </main>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

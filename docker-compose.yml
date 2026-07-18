@@ -1,0 +1,38 @@
+services:
+  app:
+    build: .
+    container_name: controle-vendas
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: controle
+      DB_PASSWORD: controle
+      DB_NAME: controle_vendas
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: controle-vendas-db
+    environment:
+      MYSQL_DATABASE: controle_vendas
+      MYSQL_USER: controle
+      MYSQL_PASSWORD: controle
+      MYSQL_ROOT_PASSWORD: controle_root
+    ports:
+      - "3306:3306"
+    volumes:
+      - controle-vendas-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pcontrole_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  controle-vendas-mysql-data:
