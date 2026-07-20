@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "migrate": "node scripts/migrar-json-para-mysql.js",
+    "resetar-banco": "node scripts/resetar-banco.js",
     "up": "bash subir.sh"
   },
   "dependencies": {
