@@ -1,4 +1,8 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const { pool } = require('../db');
 const asyncHandler = require('../asyncHandler');
 
@@ -11,8 +15,49 @@ function mapProduto(row) {
     precoCusto: row.preco_custo,
     precoVenda: row.preco_venda,
     estoque: row.estoque,
+    imagem: row.imagem || null,
+    tags: row.tags ? row.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
     criadoEm: row.criado_em
   };
+}
+
+function normalizarTags(tags) {
+  if (!tags) return '';
+  const lista = Array.isArray(tags) ? tags : String(tags).split(',');
+  return lista.map(t => t.trim()).filter(Boolean).join(', ');
+}
+
+// ---------- Upload de imagem do produto ----------
+const uploadsDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'produtos');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const EXTENSOES_PERMITIDAS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' };
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${EXTENSOES_PERMITIDAS[file.mimetype] || ''}`)
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!EXTENSOES_PERMITIDAS[file.mimetype]) {
+      return cb(new Error('Formato de imagem não suportado. Use JPG, PNG, WEBP ou GIF.'));
+    }
+    cb(null, true);
+  }
+});
+
+function receberImagem(req, res, next) {
+  upload.single('imagem')(req, res, (err) => {
+    if (err) return res.status(400).json({ erro: err.message || 'Erro ao enviar imagem' });
+    next();
+  });
+}
+
+function excluirArquivoImagem(imagemUrl) {
+  if (!imagemUrl) return;
+  const caminho = path.join(uploadsDir, path.basename(imagemUrl));
+  fs.unlink(caminho, () => {}); // ignora erro (ex: arquivo já não existe)
 }
 
 function mapMovimento(row) {
@@ -33,15 +78,26 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(rows.map(mapProduto));
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
-  const { nome, precoCusto, precoVenda, estoqueInicial, lancarCompraNoCaixa } = req.body;
+router.get('/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const [rows] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
+  if (rows.length === 0) return res.status(404).json({ erro: 'Produto não encontrado' });
+  res.json(mapProduto(rows[0]));
+}));
+
+router.post('/', receberImagem, asyncHandler(async (req, res) => {
+  const { nome, precoCusto, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags } = req.body;
+  const imagemUrl = req.file ? '/uploads/produtos/' + req.file.filename : null;
+
   if (!nome || !nome.trim()) {
+    excluirArquivoImagem(imagemUrl);
     return res.status(400).json({ erro: 'Nome é obrigatório' });
   }
   const custo = Number(precoCusto);
   const venda = Number(precoVenda);
   const estoque = Number(estoqueInicial) || 0;
   if (isNaN(custo) || custo < 0 || isNaN(venda) || venda < 0) {
+    excluirArquivoImagem(imagemUrl);
     return res.status(400).json({ erro: 'Preço de custo e preço de venda devem ser números válidos' });
   }
 
@@ -52,8 +108,8 @@ router.post('/', asyncHandler(async (req, res) => {
     const nomeTrim = nome.trim();
 
     const [result] = await conn.query(
-      'INSERT INTO produtos (nome, preco_custo, preco_venda, estoque, criado_em) VALUES (?, ?, ?, ?, ?)',
-      [nomeTrim, custo, venda, estoque, data]
+      'INSERT INTO produtos (nome, preco_custo, preco_venda, estoque, imagem, tags, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [nomeTrim, custo, venda, estoque, imagemUrl, normalizarTags(tags), data]
     );
     const produtoId = result.insertId;
 
@@ -79,24 +135,40 @@ router.post('/', asyncHandler(async (req, res) => {
     res.status(201).json(mapProduto(rows[0]));
   } catch (err) {
     await conn.rollback();
+    excluirArquivoImagem(imagemUrl);
     throw err;
   } finally {
     conn.release();
   }
 }));
 
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   const [rows] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-  if (rows.length === 0) return res.status(404).json({ erro: 'Produto não encontrado' });
+  if (rows.length === 0) {
+    excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+    return res.status(404).json({ erro: 'Produto não encontrado' });
+  }
   const atual = rows[0];
-  const { nome, precoCusto, precoVenda } = req.body;
+  const { nome, precoCusto, precoVenda, tags, removerImagem } = req.body;
+
+  let imagemUrl = atual.imagem;
+  if (req.file) {
+    excluirArquivoImagem(atual.imagem);
+    imagemUrl = '/uploads/produtos/' + req.file.filename;
+  } else if (removerImagem === 'true') {
+    excluirArquivoImagem(atual.imagem);
+    imagemUrl = null;
+  }
+
   await pool.query(
-    'UPDATE produtos SET nome = ?, preco_custo = ?, preco_venda = ? WHERE id = ?',
+    'UPDATE produtos SET nome = ?, preco_custo = ?, preco_venda = ?, imagem = ?, tags = ? WHERE id = ?',
     [
       nome !== undefined ? nome : atual.nome,
       precoCusto !== undefined ? Number(precoCusto) : atual.preco_custo,
       precoVenda !== undefined ? Number(precoVenda) : atual.preco_venda,
+      imagemUrl,
+      tags !== undefined ? normalizarTags(tags) : atual.tags,
       id
     ]
   );
@@ -114,7 +186,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (itensPedido.length > 0) {
     return res.status(400).json({ erro: 'Produto possui pedidos e não pode ser excluído' });
   }
+  const [rows] = await pool.query('SELECT imagem FROM produtos WHERE id = ?', [id]);
   await pool.query('DELETE FROM produtos WHERE id = ?', [id]);
+  if (rows[0]) excluirArquivoImagem(rows[0].imagem);
   res.status(204).end();
 }));
 

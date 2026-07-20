@@ -28,6 +28,13 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ lancamentos, saldo, totalEntradas, totalSaidas });
 }));
 
+router.get('/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [id]);
+  if (rows.length === 0) return res.status(404).json({ erro: 'Lançamento não encontrado' });
+  res.json(mapLancamento(rows[0]));
+}));
+
 // Lançamento manual (ex: aluguel, embalagens, transporte, aporte de capital)
 router.post('/', asyncHandler(async (req, res) => {
   const { tipo, categoria, valor, descricao, data } = req.body;

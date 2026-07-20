@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="titulo-pagina">Novo Cliente · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2 id="titulo-formulario">Novo Cliente</h2>
+        <a href="clientes.html" class="botao secundario">Voltar</a>
+      </div>
+      <div class="panel">
+        <form id="form-cliente">
+          <input type="hidden" name="id">
+          <div class="form-inline">
+            <label class="field field-larga">Nome *
+              <input type="text" name="nome" placeholder="Ex: Maria Silva" required>
+            </label>
+            <label class="field">Telefone
+              <input type="text" name="telefone" placeholder="(11) 99999-0000">
+            </label>
+            <label class="field">E-mail
+              <input type="email" name="email" placeholder="nome@email.com">
+            </label>
+            <label class="field field-larga">Endereço
+              <input type="text" name="endereco" placeholder="Rua, número, bairro">
+            </label>
+          </div>
+          <div class="form-acoes">
+            <button type="submit">Salvar</button>
+            <a href="clientes.html" class="botao secundario">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/cliente-form.js"></script>
+</body>
+</html>

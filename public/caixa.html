@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fluxo de Caixa · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2>Fluxo de Caixa</h2>
+        <a href="caixa-form.html" class="botao">+ Novo Lançamento</a>
+      </div>
+      <div class="resumo-caixa">
+        <div class="card entrada">Total de Entradas<br><span id="total-entradas">R$ 0,00</span></div>
+        <div class="card saida">Total de Saídas<br><span id="total-saidas">R$ 0,00</span></div>
+        <div class="card saldo">Saldo Atual<br><span id="saldo-caixa">R$ 0,00</span></div>
+      </div>
+      <div id="tabela-caixa"></div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/data-table.js"></script>
+<script src="js/caixa.js"></script>
+</body>
+</html>

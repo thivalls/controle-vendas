@@ -64,6 +64,10 @@ async function migrarColunas(conn) {
   await conn.query(
     `UPDATE vendas SET data_pagamento = data WHERE status_pagamento = 'pago' AND data_pagamento IS NULL`
   );
+
+  // Imagem e tags do produto (ex: "clareador de virilha") para achar o produto certo na hora de dar baixa
+  await adicionarColunaSeNaoExistir(conn, 'produtos', 'imagem', 'VARCHAR(255) NULL');
+  await adicionarColunaSeNaoExistir(conn, 'produtos', 'tags', "VARCHAR(500) NOT NULL DEFAULT ''");
 }
 
 module.exports = { pool, waitForDb, initSchema };

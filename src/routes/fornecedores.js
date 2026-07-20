@@ -20,6 +20,13 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(rows.map(mapFornecedor));
 }));
 
+router.get('/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const [rows] = await pool.query('SELECT * FROM fornecedores WHERE id = ?', [id]);
+  if (rows.length === 0) return res.status(404).json({ erro: 'Fornecedor não encontrado' });
+  res.json(mapFornecedor(rows[0]));
+}));
+
 router.post('/', asyncHandler(async (req, res) => {
   const { nome, telefone, email, endereco } = req.body;
   if (!nome || !nome.trim()) {

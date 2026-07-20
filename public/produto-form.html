@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="titulo-pagina">Novo Produto · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2 id="titulo-formulario">Novo Produto</h2>
+        <a href="produtos.html" class="botao secundario">Voltar</a>
+      </div>
+      <div class="panel">
+        <form id="form-produto">
+          <div class="produto-imagem-campo">
+            <div id="produto-imagem-preview" class="produto-imagem-preview produto-imagem-preview-vazio">Sem imagem</div>
+            <div class="produto-imagem-controles">
+              <label class="field">Imagem do produto
+                <input type="file" name="imagem" accept="image/jpeg,image/png,image/webp,image/gif">
+              </label>
+              <label class="checkbox-inline" id="campo-remover-imagem" style="display:none">
+                <input type="checkbox" name="removerImagem"> Remover imagem atual
+              </label>
+            </div>
+          </div>
+          <div class="form-inline">
+            <label class="field field-larga">Nome do produto *
+              <input type="text" name="nome" placeholder="Ex: Camiseta branca P" required>
+            </label>
+            <label class="field">Preço de custo (R$) *
+              <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00" required>
+            </label>
+            <label class="field">Preço de venda (R$) *
+              <input type="number" step="0.01" min="0" name="precoVenda" placeholder="0,00" required>
+            </label>
+            <label class="field" id="campo-estoque-inicial">Estoque inicial
+              <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
+            </label>
+          </div>
+          <label class="checkbox-inline" id="campo-lancar-caixa">
+            <input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)
+          </label>
+          <div class="field field-larga" style="flex-basis:100%; margin-top: 0.9rem;">
+            Tags (para pesquisar depois — ex: "clareador de virilha", "virilha")
+            <div id="campo-tags"></div>
+          </div>
+          <p class="dica" id="dica-estoque-edicao" style="display:none">
+            O estoque atual é <strong id="estoque-atual"></strong>. Para ajustar a quantidade, use a aba
+            <a href="index.html">Estoque</a> — assim o histórico de movimentações fica registrado.
+          </p>
+          <div class="form-acoes">
+            <button type="submit">Salvar</button>
+            <a href="produtos.html" class="botao secundario">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/tag-input.js"></script>
+<script src="js/produto-form.js"></script>
+</body>
+</html>
