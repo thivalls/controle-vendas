@@ -87,7 +87,7 @@
                 <div id="busca-cliente-venda"></div>
               </label>
               <label class="field">Forma de pagamento
-                <input type="text" name="formaPagamento" placeholder="Ex: Pix, dinheiro, cartão (opcional)">
+                <select name="formaPagamento" id="select-forma-pagamento-venda"></select>
               </label>
               <label class="field">Situação do pagamento
                 <select name="statusPagamento">
@@ -143,7 +143,7 @@
               <input type="date" name="dataFim">
             </label>
             <label class="field field-larga">Produtos
-              <select name="produtoIds" multiple size="4"></select>
+              <div id="busca-produtos-filtro-vendas"></div>
             </label>
             <button type="button" id="limpar-filtro-vendas" class="secundario">Limpar filtros</button>
           </form>
@@ -222,7 +222,10 @@
 </div>
 
 <script src="js/common.js"></script>
+<script src="js/enums.js"></script>
+<script src="js/select-enum.js"></script>
 <script src="js/select-busca.js"></script>
+<script src="js/multi-select-busca.js"></script>
 <script src="js/produto-busca.js"></script>
 <script src="js/sku-busca.js"></script>
 <script src="js/entidade-busca.js"></script>

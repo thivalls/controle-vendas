@@ -112,23 +112,22 @@ async function carregarFornecedoresParaSelects() {
   buscaFornecedorPedido.definirFornecedores(cacheFornecedores);
 }
 
-// ---------- PRODUTOS (cadastro fica em produtos.html; aqui só alimentamos o select de Vendas) ----------
+// ---------- PRODUTOS (cadastro fica em produtos.html; aqui só alimentamos os selects de Vendas) ----------
+const buscaProdutosFiltroVendas = criarMultiSelectBusca(document.getElementById('busca-produtos-filtro-vendas'), {
+  placeholder: 'Buscar produto para filtrar...',
+  getTextoPesquisavel: (p) => [p.sku, p.nome, ...(p.tags || [])].join(' '),
+  onAlterar: () => renderVendasFiltradas()
+});
+
 async function carregarProdutosParaSelects() {
   cacheProdutos = await api('GET', '/produtos');
-  preencherFiltroProdutosVenda();
+  buscaProdutosFiltroVendas.definirItens(cacheProdutos);
 }
 
 // ---------- SKUS (cadastro fica em skus.html; aqui só alimentamos os selects de Estoque/Pedidos) ----------
 async function carregarSkusParaSelects() {
   cacheSkus = await api('GET', '/skus');
   buscaSkuEstoque.definirSkus(cacheSkus);
-}
-
-function preencherFiltroProdutosVenda() {
-  const select = document.querySelector('#form-filtro-vendas select[name=produtoIds]');
-  const selecionados = new Set(Array.from(select.selectedOptions).map(o => o.value));
-  select.innerHTML = cacheProdutos.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-  Array.from(select.options).forEach(o => { o.selected = selecionados.has(o.value); });
 }
 
 // ---------- ESTOQUE (sempre movimenta o SKU — a unidade física de verdade) ----------
@@ -172,6 +171,8 @@ formEstoque.addEventListener('submit', async (e) => {
 // ---------- VENDAS ----------
 const formVenda = document.getElementById('form-venda');
 const itensVendaDiv = document.getElementById('itens-venda');
+
+preencherSelectEnum(document.getElementById('select-forma-pagamento-venda'), FORMAS_PAGAMENTO, { comOpcaoVazia: 'Selecione (opcional)' });
 
 function novaLinhaItemVenda() {
   const div = document.createElement('div');
@@ -242,10 +243,9 @@ async function carregarVendas() {
 
 function preencherFiltroFormaPagamentoVenda() {
   const select = document.querySelector('#form-filtro-vendas select[name=formaPagamento]');
-  const valorAtual = select.value;
-  const formas = [...new Set(cacheVendas.map(v => v.formaPagamento).filter(Boolean))].sort();
-  select.innerHTML = '<option value="">Todas</option>' + formas.map(f => `<option value="${f}">${f}</option>`).join('');
-  select.value = valorAtual;
+  const formasEmUso = cacheVendas.map(v => v.formaPagamento).filter(Boolean);
+  const formas = [...new Set([...FORMAS_PAGAMENTO, ...formasEmUso])];
+  preencherSelectEnum(select, formas, { comOpcaoVazia: 'Todas' });
 }
 
 function filtrarVendas() {
@@ -256,7 +256,7 @@ function filtrarVendas() {
   const formaPagamento = form.formaPagamento.value;
   const dataInicio = form.dataInicio.value;
   const dataFim = form.dataFim.value;
-  const produtoIds = Array.from(form.produtoIds.selectedOptions).map(o => Number(o.value));
+  const produtoIds = buscaProdutosFiltroVendas.obterIds();
 
   return cacheVendas.filter(v => {
     if (clienteId && String(v.clienteId) !== clienteId) return false;
@@ -303,7 +303,7 @@ formFiltroVendas.addEventListener('change', renderVendasFiltradas);
 document.getElementById('limpar-filtro-vendas').addEventListener('click', () => {
   formFiltroVendas.reset();
   buscaClienteFiltroVendas.limpar();
-  Array.from(formFiltroVendas.produtoIds.options).forEach(o => { o.selected = false; });
+  buscaProdutosFiltroVendas.limpar();
   renderVendasFiltradas();
 });
 
