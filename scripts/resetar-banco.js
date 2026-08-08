@@ -1,4 +1,4 @@
-// Reset total dos dados do sistema: apaga clientes, fornecedores, produtos, vendas,
+// Reset total dos dados do sistema: apaga clientes, fornecedores, produtos, SKUs, vendas,
 // pedidos, movimentos de estoque, caixa e as imagens de produto enviadas — mantém o
 // schema das tabelas intacto e os IDs voltam a começar do 1.
 //
@@ -25,7 +25,9 @@ const TABELAS = [
   'vendas',
   'pedido_itens',
   'pedidos',
+  'produto_skus',
   'produtos',
+  'skus',
   'fornecedores',
   'clientes'
 ];
@@ -37,7 +39,7 @@ function perguntar(pergunta) {
 
 async function main() {
   console.log('\n⚠️  Isso vai apagar PERMANENTEMENTE todos os dados do sistema:');
-  console.log('   clientes, fornecedores, produtos, vendas, pedidos, estoque, caixa e imagens de produto.');
+  console.log('   clientes, fornecedores, produtos, SKUs, vendas, pedidos, estoque, caixa e imagens de produto.');
   console.log('   Essa ação não pode ser desfeita.\n');
 
   const resposta = await perguntar(`Digite "${FRASE_CONFIRMACAO}" para confirmar: `);
