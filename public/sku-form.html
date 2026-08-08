@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="titulo-pagina">Novo SKU · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2 id="titulo-formulario">Novo SKU</h2>
+        <a href="skus.html" class="botao secundario">Voltar</a>
+      </div>
+      <div class="panel">
+        <form id="form-sku">
+          <div class="form-inline">
+            <label class="field">Código (opcional)
+              <input type="text" name="codigo" placeholder="Ex: XPTO-001">
+            </label>
+            <label class="field field-larga">Nome *
+              <input type="text" name="nome" placeholder="Ex: Frasco 100ml" required>
+            </label>
+            <label class="field">Preço de custo (R$) *
+              <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00" required>
+            </label>
+            <label class="field" id="campo-estoque-inicial">Estoque inicial
+              <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
+            </label>
+          </div>
+          <label class="checkbox-inline" id="campo-lancar-caixa">
+            <input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)
+          </label>
+          <p class="dica" id="dica-estoque-edicao" style="display:none">
+            O estoque atual é <strong id="estoque-atual"></strong>. Para ajustar a quantidade, use a aba
+            <a href="index.html">Estoque</a> — assim o histórico de movimentações fica registrado.
+          </p>
+          <div class="form-acoes">
+            <button type="submit">Salvar</button>
+            <a href="skus.html" class="botao secundario">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/sku-form.js"></script>
+</body>
+</html>

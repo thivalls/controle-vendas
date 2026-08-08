@@ -34,21 +34,22 @@ async function api(metodo, caminho, corpo) {
 // o próprio index.html decide, ao clicar, se troca de aba (quando a aba existe nele) ou navega de verdade.
 const NAV_CONFIG = [
   { grupo: 'Início', chave: 'inicio', itens: [
-    { chave: 'dashboard', rotulo: 'Dashboard', href: 'index.html' }
+    { chave: 'dashboard', rotulo: 'Dashboard', href: 'index.html#dashboard' }
   ]},
   { grupo: 'Cadastros', chave: 'cadastros', itens: [
     { chave: 'clientes', rotulo: 'Clientes', href: 'clientes.html' },
     { chave: 'fornecedores', rotulo: 'Fornecedores', href: 'fornecedores.html' },
-    { chave: 'produtos', rotulo: 'Produtos', href: 'produtos.html' }
+    { chave: 'produtos', rotulo: 'Produtos', href: 'produtos.html' },
+    { chave: 'skus', rotulo: 'SKUs', href: 'skus.html' }
   ]},
   { grupo: 'Operações', chave: 'operacoes', itens: [
-    { chave: 'estoque', rotulo: 'Estoque', href: 'index.html' },
-    { chave: 'vendas', rotulo: 'Vendas', href: 'index.html' },
-    { chave: 'pedidos', rotulo: 'Pedidos', href: 'index.html' }
+    { chave: 'estoque', rotulo: 'Estoque', href: 'index.html#estoque' },
+    { chave: 'vendas', rotulo: 'Vendas', href: 'index.html#vendas' },
+    { chave: 'pedidos', rotulo: 'Pedidos', href: 'index.html#pedidos' }
   ]},
   { grupo: 'Financeiro', chave: 'financeiro', itens: [
     { chave: 'caixa', rotulo: 'Fluxo de Caixa', href: 'caixa.html' },
-    { chave: 'relatorio', rotulo: 'Relatório Mensal', href: 'index.html' }
+    { chave: 'relatorio', rotulo: 'Relatório Mensal', href: 'index.html#relatorio' }
   ]}
 ];
 

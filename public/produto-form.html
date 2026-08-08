@@ -37,31 +37,74 @@
               </label>
             </div>
           </div>
+
           <div class="form-inline">
             <label class="field field-larga">Nome do produto *
               <input type="text" name="nome" placeholder="Ex: Camiseta branca P" required>
             </label>
-            <label class="field">Preço de custo (R$) *
-              <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00" required>
-            </label>
             <label class="field">Preço de venda (R$) *
               <input type="number" step="0.01" min="0" name="precoVenda" placeholder="0,00" required>
             </label>
-            <label class="field" id="campo-estoque-inicial">Estoque inicial
-              <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
-            </label>
           </div>
-          <label class="checkbox-inline" id="campo-lancar-caixa">
-            <input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)
-          </label>
+
+          <div class="field field-larga" style="flex-basis:100%;" id="campo-tipo-produto">
+            Tipo de produto
+            <div class="tipo-produto-opcoes">
+              <label class="tipo-produto-opcao">
+                <input type="radio" name="tipo" value="simples" checked>
+                <span><strong>Simples</strong><small>Produto físico com estoque próprio</small></span>
+              </label>
+              <label class="tipo-produto-opcao">
+                <input type="radio" name="tipo" value="kit">
+                <span><strong>Kit</strong><small>Composto por 2 ou mais SKUs</small></span>
+              </label>
+            </div>
+          </div>
+          <p class="dica" id="tipo-produto-fixo" style="display:none">
+            Tipo: <strong id="tipo-produto-fixo-texto"></strong> — o tipo de um produto não pode ser alterado depois de criado.
+          </p>
+
+          <!-- SIMPLES: custo, estoque e código opcional -->
+          <div id="campos-simples">
+            <div class="form-inline">
+              <label class="field">Preço de custo (R$) *
+                <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00">
+              </label>
+              <label class="field" id="campo-estoque-inicial">Estoque inicial
+                <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
+              </label>
+              <label class="field">Código (opcional)
+                <input type="text" name="codigo" placeholder="Ex: XPTO-001">
+              </label>
+            </div>
+            <label class="checkbox-inline" id="campo-lancar-caixa">
+              <input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)
+            </label>
+
+            <p class="dica" id="dica-estoque-edicao" style="display:none">
+              O estoque atual é <strong id="estoque-atual"></strong>. Para ajustar a quantidade, use a aba
+              <a href="index.html">Estoque</a> — assim o histórico de movimentações fica registrado.
+            </p>
+          </div>
+
+          <!-- KIT: quais SKUs compõem o kit -->
+          <div id="campos-kit" style="display:none">
+            <p class="itens-label">SKUs que compõem o kit (mínimo 2 SKUs diferentes)</p>
+            <div class="itens-header">
+              <span class="col-produto">SKU</span>
+              <span class="col-quantidade">Quantidade</span>
+              <span class="col-acao"></span>
+            </div>
+            <div id="itens-kit"></div>
+            <button type="button" id="add-item-kit" class="secundario">+ Adicionar SKU</button>
+            <p class="dica" id="kit-custo-estimado"></p>
+          </div>
+
           <div class="field field-larga" style="flex-basis:100%; margin-top: 0.9rem;">
             Tags (para pesquisar depois — ex: "clareador de virilha", "virilha")
             <div id="campo-tags"></div>
           </div>
-          <p class="dica" id="dica-estoque-edicao" style="display:none">
-            O estoque atual é <strong id="estoque-atual"></strong>. Para ajustar a quantidade, use a aba
-            <a href="index.html">Estoque</a> — assim o histórico de movimentações fica registrado.
-          </p>
+
           <div class="form-acoes">
             <button type="submit">Salvar</button>
             <a href="produtos.html" class="botao secundario">Cancelar</a>
@@ -74,6 +117,8 @@
 </div>
 
 <script src="js/common.js"></script>
+<script src="js/select-busca.js"></script>
+<script src="js/sku-busca.js"></script>
 <script src="js/tag-input.js"></script>
 <script src="js/produto-form.js"></script>
 </body>

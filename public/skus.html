@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKUs · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2>SKUs</h2>
+        <a href="sku-form.html" class="botao">+ Novo SKU</a>
+      </div>
+      <p class="dica">SKU é a unidade física de estoque — o que você compra e conta no depósito. Cadastre aqui os SKUs que serão usados como componente de kit sem precisar virar um produto vendável por si só. Ao criar um produto simples, o SKU já é criado junto automaticamente.</p>
+      <div id="tabela-skus"></div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/data-table.js"></script>
+<script src="js/skus.js"></script>
+</body>
+</html>

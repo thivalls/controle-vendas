@@ -133,6 +133,10 @@ function criarSelectBusca(container, opcoes = {}) {
       itens = lista || [];
     },
     obterValor: () => hiddenEl.value,
+    // Pré-seleciona um item programaticamente (ex: preencher o formulário ao editar)
+    definirValor(item) {
+      if (item) selecionar(item); else limparSelecao();
+    },
     limpar() {
       inputEl.value = '';
       limparSelecao();

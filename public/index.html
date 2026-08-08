@@ -46,8 +46,8 @@
         <h2>Movimentar Estoque</h2>
         <div class="panel">
           <form id="form-estoque" class="form-inline">
-            <label class="field field-larga">Produto *
-              <div id="busca-produto-estoque"></div>
+            <label class="field field-larga">SKU *
+              <div id="busca-sku-estoque"></div>
             </label>
             <label class="field">Tipo de movimento
               <select name="tipo">
@@ -71,7 +71,7 @@
         <h3>Histórico de movimentações</h3>
         <div class="table-wrap">
           <table id="tabela-estoque">
-            <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Motivo</th></tr></thead>
+            <thead><tr><th>Data</th><th>SKU</th><th>Tipo</th><th>Quantidade</th><th>Motivo</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -172,19 +172,19 @@
                 <input type="date" name="dataNotaFiscal">
               </label>
             </div>
-            <p class="itens-label">Produtos do pedido</p>
+            <p class="itens-label">SKUs do pedido</p>
             <div class="itens-header">
-              <span class="col-produto">Produto</span>
+              <span class="col-produto">SKU</span>
               <span class="col-quantidade">Quantidade</span>
               <span class="col-preco">Preço unitário (R$)</span>
               <span class="col-acao"></span>
             </div>
             <div id="itens-pedido"></div>
-            <button type="button" id="add-item-pedido">+ Adicionar produto</button>
+            <button type="button" id="add-item-pedido">+ Adicionar SKU</button>
             <div class="total-pedido">Total: <strong id="total-pedido">R$ 0,00</strong></div>
             <button type="submit">Finalizar Pedido</button>
           </form>
-          <p class="dica">Ao finalizar, os produtos entram no estoque, o preço de custo é atualizado com o valor pago e uma saída é lançada no fluxo de caixa.</p>
+          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado, o preço de custo é atualizado com o valor pago e uma saída é lançada no fluxo de caixa.</p>
         </div>
 
         <h3>Pedidos realizados</h3>
@@ -224,6 +224,7 @@
 <script src="js/common.js"></script>
 <script src="js/select-busca.js"></script>
 <script src="js/produto-busca.js"></script>
+<script src="js/sku-busca.js"></script>
 <script src="js/entidade-busca.js"></script>
 <script src="app.js"></script>
 </body>

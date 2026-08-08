@@ -907,6 +907,55 @@ tbody tr:last-child td { border-bottom: none; }
 
 .acoes button:last-child { margin-right: 0; }
 
+/* ---------- SELETOR DE TIPO DE PRODUTO (simples/kit) ---------- */
+.tipo-produto-opcoes {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tipo-produto-opcao {
+  flex: 1 1 220px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.tipo-produto-opcao:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.tipo-produto-opcao input[type="radio"] {
+  margin-top: 0.2rem;
+  flex: 0 0 auto;
+}
+
+.tipo-produto-opcao span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tipo-produto-opcao strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tipo-produto-opcao small {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* ---------- BADGES DE STATUS ---------- */
 .badge {
   display: inline-block;
@@ -920,6 +969,8 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.cancelado { background: var(--danger-soft); color: var(--danger-soft-text); }
 .badge.pago { background: var(--success-soft); color: var(--success-soft-text); }
 .badge.pendente { background: var(--warning-soft); color: var(--warning-soft-text); }
+.badge.simples { background: var(--primary-soft); color: var(--primary-soft-text); }
+.badge.kit { background: var(--warning-soft); color: var(--warning-soft-text); }
 
 /* ---------- RESPONSIVO ---------- */
 @media (max-width: 720px) {

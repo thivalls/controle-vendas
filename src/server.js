@@ -5,6 +5,7 @@ const { waitForDb, initSchema } = require('./db');
 
 const clientesRouter = require('./routes/clientes');
 const fornecedoresRouter = require('./routes/fornecedores');
+const skusRouter = require('./routes/skus');
 const produtosRouter = require('./routes/produtos');
 const estoqueRouter = require('./routes/estoque');
 const vendasRouter = require('./routes/vendas');
@@ -20,6 +21,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/clientes', clientesRouter);
 app.use('/api/fornecedores', fornecedoresRouter);
+app.use('/api/skus', skusRouter);
 app.use('/api/produtos', produtosRouter);
 app.use('/api/estoque', estoqueRouter);
 app.use('/api/vendas', vendasRouter);

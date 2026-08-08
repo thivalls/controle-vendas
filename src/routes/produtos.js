@@ -8,23 +8,95 @@ const asyncHandler = require('../asyncHandler');
 
 const router = express.Router();
 
-function mapProduto(row) {
-  return {
-    id: row.id,
-    nome: row.nome,
-    precoCusto: row.preco_custo,
-    precoVenda: row.preco_venda,
-    estoque: row.estoque,
-    imagem: row.imagem || null,
-    tags: row.tags ? row.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-    criadoEm: row.criado_em
-  };
-}
-
 function normalizarTags(tags) {
   if (!tags) return '';
   const lista = Array.isArray(tags) ? tags : String(tags).split(',');
   return lista.map(t => t.trim()).filter(Boolean).join(', ');
+}
+
+// Produto (simples ou kit) nunca guarda custo/estoque direto — sempre calculado a partir
+// dos SKUs vinculados (produto_skus). Simples tem exatamente 1 SKU (quantidade 1), então
+// o cálculo já "vira" o valor direto do SKU nesse caso — não precisa de caso especial.
+function mapProduto(row, skusVinculados) {
+  const lista = skusVinculados || [];
+  const precoCusto = lista.reduce((soma, s) => soma + s.precoCusto * s.quantidade, 0);
+  const estoque = lista.length === 0 ? 0 : Math.min(...lista.map(s => Math.floor(s.estoque / s.quantidade)));
+  return {
+    id: row.id,
+    tipo: row.tipo,
+    nome: row.nome,
+    precoCusto,
+    precoVenda: row.preco_venda,
+    estoque,
+    imagem: row.imagem || null,
+    tags: row.tags ? row.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+    criadoEm: row.criado_em,
+    sku: row.tipo === 'simples' && lista[0] ? lista[0].codigo : null,
+    skus: lista
+  };
+}
+
+async function buscarSkusPorProduto(idsProdutos) {
+  const porProduto = new Map();
+  if (idsProdutos.length === 0) return porProduto;
+  const [rows] = await pool.query(
+    `SELECT pks.produto_id, pks.sku_id, pks.quantidade,
+            s.codigo AS sku_codigo, s.nome AS sku_nome, s.preco_custo AS sku_preco_custo, s.estoque AS sku_estoque
+     FROM produto_skus pks
+     JOIN skus s ON s.id = pks.sku_id
+     WHERE pks.produto_id IN (?)
+     ORDER BY pks.id`,
+    [idsProdutos]
+  );
+  for (const row of rows) {
+    if (!porProduto.has(row.produto_id)) porProduto.set(row.produto_id, []);
+    porProduto.get(row.produto_id).push({
+      skuId: row.sku_id,
+      codigo: row.sku_codigo,
+      nome: row.sku_nome,
+      quantidade: row.quantidade,
+      precoCusto: row.sku_preco_custo,
+      estoque: row.sku_estoque
+    });
+  }
+  return porProduto;
+}
+
+async function buscarProdutosCompletos(whereSql = '', params = []) {
+  const [rows] = await pool.query(`SELECT * FROM produtos ${whereSql} ORDER BY id`, params);
+  if (rows.length === 0) return [];
+  const skusPorProduto = await buscarSkusPorProduto(rows.map(r => r.id));
+  return rows.map(row => mapProduto(row, skusPorProduto.get(row.id)));
+}
+
+// Lê e valida a lista de SKUs de um kit vinda do formulário (JSON em string, por causa do
+// multipart). Retorna { erro } ou { skus: Map<skuId, quantidade> }.
+function lerSkusDoBody(skusBrutos) {
+  let lista;
+  try {
+    lista = typeof skusBrutos === 'string' ? JSON.parse(skusBrutos) : skusBrutos;
+  } catch {
+    return { erro: 'Lista de SKUs do kit inválida' };
+  }
+  if (!Array.isArray(lista)) return { erro: 'Lista de SKUs do kit inválida' };
+
+  const porSku = new Map();
+  for (const item of lista) {
+    const skuId = Number(item.skuId);
+    const quantidade = Number(item.quantidade);
+    if (!skuId || !quantidade || quantidade <= 0) {
+      return { erro: 'Todos os componentes do kit precisam de um SKU e quantidade válidos' };
+    }
+    porSku.set(skuId, (porSku.get(skuId) || 0) + quantidade);
+  }
+  if (porSku.size < 2) return { erro: 'Um kit precisa de pelo menos 2 SKUs diferentes' };
+  return { skus: porSku };
+}
+
+async function validarSkusExistem(conn, idsSkus) {
+  const [rows] = await conn.query('SELECT id FROM skus WHERE id IN (?)', [idsSkus]);
+  if (rows.length !== idsSkus.length) return 'Um ou mais SKUs do kit não foram encontrados';
+  return null;
 }
 
 // ---------- Upload de imagem do produto ----------
@@ -60,79 +132,110 @@ function excluirArquivoImagem(imagemUrl) {
   fs.unlink(caminho, () => {}); // ignora erro (ex: arquivo já não existe)
 }
 
-function mapMovimento(row) {
-  return {
-    id: row.id,
-    produtoId: row.produto_id,
-    tipo: row.tipo,
-    quantidade: row.quantidade,
-    motivo: row.motivo,
-    data: row.data,
-    vendaId: row.venda_id || undefined,
-    pedidoId: row.pedido_id || undefined
-  };
-}
-
 router.get('/', asyncHandler(async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM produtos ORDER BY id');
-  res.json(rows.map(mapProduto));
+  res.json(await buscarProdutosCompletos());
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
-  const [rows] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-  if (rows.length === 0) return res.status(404).json({ erro: 'Produto não encontrado' });
-  res.json(mapProduto(rows[0]));
+  const [produto] = await buscarProdutosCompletos('WHERE id = ?', [id]);
+  if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
+  res.json(produto);
 }));
 
 router.post('/', receberImagem, asyncHandler(async (req, res) => {
-  const { nome, precoCusto, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags } = req.body;
+  const { codigo, precoCusto, tipo, nome, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags, componentes } = req.body;
   const imagemUrl = req.file ? '/uploads/produtos/' + req.file.filename : null;
+  const tipoFinal = tipo === 'kit' ? 'kit' : 'simples';
 
-  if (!nome || !nome.trim()) {
+  function recusar(status, mensagem) {
     excluirArquivoImagem(imagemUrl);
-    return res.status(400).json({ erro: 'Nome é obrigatório' });
+    res.status(status).json({ erro: mensagem });
+    return null;
   }
-  const custo = Number(precoCusto);
+
+  if (!nome || !nome.trim()) return recusar(400, 'Nome é obrigatório');
   const venda = Number(precoVenda);
-  const estoque = Number(estoqueInicial) || 0;
-  if (isNaN(custo) || custo < 0 || isNaN(venda) || venda < 0) {
-    excluirArquivoImagem(imagemUrl);
-    return res.status(400).json({ erro: 'Preço de custo e preço de venda devem ser números válidos' });
+  if (isNaN(venda) || venda < 0) return recusar(400, 'Preço de venda deve ser um número válido');
+  const nomeTrim = nome.trim();
+
+  let componentesValidados = null;
+  let custo, codigoFinal, estoqueInicialNum;
+  if (tipoFinal === 'kit') {
+    const { erro, skus: mapaSkus } = lerSkusDoBody(componentes);
+    if (erro) return recusar(400, erro);
+    componentesValidados = mapaSkus;
+  } else {
+    custo = Number(precoCusto);
+    if (isNaN(custo) || custo < 0) return recusar(400, 'Preço de custo deve ser um número válido');
+    codigoFinal = codigo && codigo.trim() ? codigo.trim() : null;
+    estoqueInicialNum = Number(estoqueInicial) || 0;
   }
 
   const conn = await pool.getConnection();
+  let produtoId;
   try {
     await conn.beginTransaction();
     const data = new Date();
-    const nomeTrim = nome.trim();
 
-    const [result] = await conn.query(
-      'INSERT INTO produtos (nome, preco_custo, preco_venda, estoque, imagem, tags, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [nomeTrim, custo, venda, estoque, imagemUrl, normalizarTags(tags), data]
-    );
-    const produtoId = result.insertId;
-
-    if (estoque > 0) {
-      await conn.query(
-        `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data)
-         VALUES (?, 'entrada', ?, 'Estoque inicial', ?)`,
-        [produtoId, estoque, data]
-      );
-
-      // Por padrão, já lança a compra desse estoque inicial no caixa (evita lançamento manual sujeito a erro)
-      if (custo > 0 && lancarCompraNoCaixa !== false && lancarCompraNoCaixa !== 'false') {
-        await conn.query(
-          `INSERT INTO caixa (tipo, categoria, valor, descricao, data)
-           VALUES ('saida', 'Compra de mercadoria', ?, ?, ?)`,
-          [estoque * custo, `Estoque inicial de ${nomeTrim} (${estoque}x)`, data]
-        );
+    // Produto simples sempre cria (ou reaproveita, se o nome bater) um SKU com o mesmo
+    // nome do produto — o conceito de SKU fica escondido do usuário nesse fluxo. O nome
+    // do SKU precisa ser único, então essa checagem também é o que evita produto duplicado.
+    let skuIdFinal = null;
+    if (tipoFinal === 'simples') {
+      const [nomeExistente] = await conn.query('SELECT id FROM skus WHERE nome = ?', [nomeTrim]);
+      if (nomeExistente.length > 0) {
+        await conn.rollback();
+        return recusar(400, `Já existe um produto ou SKU com o nome "${nomeTrim}"`);
+      }
+      if (codigoFinal) {
+        const [codigoExistente] = await conn.query('SELECT id FROM skus WHERE codigo = ?', [codigoFinal]);
+        if (codigoExistente.length > 0) {
+          await conn.rollback();
+          return recusar(400, `Já existe um SKU com o código "${codigoFinal}"`);
+        }
       }
     }
 
+    const [result] = await conn.query(
+      `INSERT INTO produtos (tipo, nome, preco_venda, imagem, tags, criado_em) VALUES (?, ?, ?, ?, ?, ?)`,
+      [tipoFinal, nomeTrim, venda, imagemUrl, normalizarTags(tags), data]
+    );
+    produtoId = result.insertId;
+
+    if (tipoFinal === 'kit') {
+      const idsSkus = [...componentesValidados.keys()];
+      const erroSkus = await validarSkusExistem(conn, idsSkus);
+      if (erroSkus) {
+        await conn.rollback();
+        return recusar(400, erroSkus);
+      }
+      for (const [skuIdComponente, quantidade] of componentesValidados) {
+        await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, ?)', [produtoId, skuIdComponente, quantidade]);
+      }
+    } else {
+      const [resultSku] = await conn.query(
+        'INSERT INTO skus (codigo, nome, preco_custo, estoque, criado_em) VALUES (?, ?, ?, ?, ?)',
+        [codigoFinal, nomeTrim, custo, estoqueInicialNum, data]
+      );
+      skuIdFinal = resultSku.insertId;
+
+      if (estoqueInicialNum > 0) {
+        await conn.query(
+          `INSERT INTO movimentos_estoque (sku_id, tipo, quantidade, motivo, data) VALUES (?, 'entrada', ?, 'Estoque inicial', ?)`,
+          [skuIdFinal, estoqueInicialNum, data]
+        );
+        if (custo > 0 && lancarCompraNoCaixa !== false && lancarCompraNoCaixa !== 'false') {
+          await conn.query(
+            `INSERT INTO caixa (tipo, categoria, valor, descricao, data) VALUES ('saida', 'Compra de mercadoria', ?, ?, ?)`,
+            [estoqueInicialNum * custo, `Estoque inicial de ${nomeTrim} (${estoqueInicialNum}x)`, data]
+          );
+        }
+      }
+      await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [produtoId, skuIdFinal]);
+    }
+
     await conn.commit();
-    const [rows] = await pool.query('SELECT * FROM produtos WHERE id = ?', [produtoId]);
-    res.status(201).json(mapProduto(rows[0]));
   } catch (err) {
     await conn.rollback();
     excluirArquivoImagem(imagemUrl);
@@ -140,6 +243,9 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
   } finally {
     conn.release();
   }
+
+  const [produtoCompleto] = await buscarProdutosCompletos('WHERE id = ?', [produtoId]);
+  res.status(201).json(produtoCompleto);
 }));
 
 router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
@@ -150,7 +256,54 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
     return res.status(404).json({ erro: 'Produto não encontrado' });
   }
   const atual = rows[0];
-  const { nome, precoCusto, precoVenda, tags, removerImagem } = req.body;
+  const { codigo, precoCusto, nome, precoVenda, tags, removerImagem, componentes } = req.body;
+  const nomeFinal = nome !== undefined && nome.trim() ? nome.trim() : atual.nome;
+
+  // Valida antes de mexer em qualquer arquivo: se a atualização for rejeitada, a imagem
+  // atual do produto não pode ter sido apagada no meio do caminho. Produto simples tem
+  // exatamente 1 SKU vinculado (nome sincronizado com o do produto) — atualiza ele direto.
+  let skuAtualId = null;
+  if (atual.tipo === 'simples') {
+    const [skuVinculado] = await pool.query('SELECT sku_id FROM produto_skus WHERE produto_id = ?', [id]);
+    skuAtualId = skuVinculado[0].sku_id;
+
+    if (nomeFinal !== atual.nome) {
+      const [nomeExistente] = await pool.query('SELECT id FROM skus WHERE nome = ? AND id != ?', [nomeFinal, skuAtualId]);
+      if (nomeExistente.length > 0) {
+        excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+        return res.status(400).json({ erro: `Já existe um produto ou SKU com o nome "${nomeFinal}"` });
+      }
+    }
+    if (codigo !== undefined && codigo.trim()) {
+      const [codigoExistente] = await pool.query('SELECT id FROM skus WHERE codigo = ? AND id != ?', [codigo.trim(), skuAtualId]);
+      if (codigoExistente.length > 0) {
+        excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+        return res.status(400).json({ erro: `Já existe um SKU com o código "${codigo.trim()}"` });
+      }
+    }
+    if (precoCusto !== undefined) {
+      const custo = Number(precoCusto);
+      if (isNaN(custo) || custo < 0) {
+        excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+        return res.status(400).json({ erro: 'Preço de custo deve ser um número válido' });
+      }
+    }
+  }
+
+  let mapaComponentes = null;
+  if (atual.tipo === 'kit' && componentes !== undefined) {
+    const resultado = lerSkusDoBody(componentes);
+    if (resultado.erro) {
+      excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+      return res.status(400).json({ erro: resultado.erro });
+    }
+    const erroSkus = await validarSkusExistem(pool, [...resultado.skus.keys()]);
+    if (erroSkus) {
+      excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+      return res.status(400).json({ erro: erroSkus });
+    }
+    mapaComponentes = resultado.skus;
+  }
 
   let imagemUrl = atual.imagem;
   if (req.file) {
@@ -161,19 +314,50 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
     imagemUrl = null;
   }
 
-  await pool.query(
-    'UPDATE produtos SET nome = ?, preco_custo = ?, preco_venda = ?, imagem = ?, tags = ? WHERE id = ?',
-    [
-      nome !== undefined ? nome : atual.nome,
-      precoCusto !== undefined ? Number(precoCusto) : atual.preco_custo,
-      precoVenda !== undefined ? Number(precoVenda) : atual.preco_venda,
-      imagemUrl,
-      tags !== undefined ? normalizarTags(tags) : atual.tags,
-      id
-    ]
-  );
-  const [atualizado] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-  res.json(mapProduto(atualizado[0]));
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    if (skuAtualId) {
+      const [skuAtual] = await conn.query('SELECT * FROM skus WHERE id = ?', [skuAtualId]);
+      await conn.query(
+        'UPDATE skus SET nome = ?, codigo = ?, preco_custo = ? WHERE id = ?',
+        [
+          nomeFinal,
+          codigo !== undefined ? (codigo.trim() ? codigo.trim() : null) : skuAtual[0].codigo,
+          precoCusto !== undefined ? Number(precoCusto) : skuAtual[0].preco_custo,
+          skuAtualId
+        ]
+      );
+    }
+    if (mapaComponentes) {
+      await conn.query('DELETE FROM produto_skus WHERE produto_id = ?', [id]);
+      for (const [skuIdComponente, quantidade] of mapaComponentes) {
+        await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, ?)', [id, skuIdComponente, quantidade]);
+      }
+    }
+
+    await conn.query(
+      'UPDATE produtos SET nome = ?, preco_venda = ?, imagem = ?, tags = ? WHERE id = ?',
+      [
+        nomeFinal,
+        precoVenda !== undefined ? Number(precoVenda) : atual.preco_venda,
+        imagemUrl,
+        tags !== undefined ? normalizarTags(tags) : atual.tags,
+        id
+      ]
+    );
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  const [produtoCompleto] = await buscarProdutosCompletos('WHERE id = ?', [id]);
+  res.json(produtoCompleto);
 }));
 
 router.delete('/:id', asyncHandler(async (req, res) => {
@@ -182,115 +366,11 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (itensVenda.length > 0) {
     return res.status(400).json({ erro: 'Produto possui vendas e não pode ser excluído' });
   }
-  const [itensPedido] = await pool.query('SELECT id FROM pedido_itens WHERE produto_id = ? LIMIT 1', [id]);
-  if (itensPedido.length > 0) {
-    return res.status(400).json({ erro: 'Produto possui pedidos e não pode ser excluído' });
-  }
   const [rows] = await pool.query('SELECT imagem FROM produtos WHERE id = ?', [id]);
+  if (rows.length === 0) return res.status(404).json({ erro: 'Produto não encontrado' });
   await pool.query('DELETE FROM produtos WHERE id = ?', [id]);
-  if (rows[0]) excluirArquivoImagem(rows[0].imagem);
+  excluirArquivoImagem(rows[0].imagem);
   res.status(204).end();
-}));
-
-// Registrar entrada de estoque (ex: comprou mais produto para revender)
-router.post('/:id/entrada', asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const quantidade = Number(req.body.quantidade);
-  const custoTotal = req.body.custoTotal !== undefined ? Number(req.body.custoTotal) : null;
-  if (!quantidade || quantidade <= 0) {
-    return res.status(400).json({ erro: 'Quantidade deve ser maior que zero' });
-  }
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT * FROM produtos WHERE id = ? FOR UPDATE', [id]);
-    if (rows.length === 0) {
-      await conn.rollback();
-      return res.status(404).json({ erro: 'Produto não encontrado' });
-    }
-    const produto = rows[0];
-    const data = new Date();
-
-    await conn.query('UPDATE produtos SET estoque = estoque + ? WHERE id = ?', [quantidade, id]);
-
-    const motivo = req.body.motivo || 'Compra de mercadoria';
-    const [movResult] = await conn.query(
-      `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data) VALUES (?, 'entrada', ?, ?, ?)`,
-      [id, quantidade, motivo, data]
-    );
-
-    // Se informou o custo total pago, lança automaticamente como saída no caixa
-    if (custoTotal !== null && custoTotal > 0) {
-      await conn.query(
-        `INSERT INTO caixa (tipo, categoria, valor, descricao, data)
-         VALUES ('saida', 'Compra de mercadoria', ?, ?, ?)`,
-        [custoTotal, `Compra de ${quantidade}x ${produto.nome}`, data]
-      );
-    }
-
-    await conn.commit();
-    const [produtoAtualizado] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-    const [movimentoRows] = await pool.query('SELECT * FROM movimentos_estoque WHERE id = ?', [movResult.insertId]);
-    res.status(201).json({ produto: mapProduto(produtoAtualizado[0]), movimento: mapMovimento(movimentoRows[0]) });
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
-}));
-
-// Registrar saída de estoque manual (ex: perda, quebra, uso próprio)
-router.post('/:id/saida', asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const quantidade = Number(req.body.quantidade);
-  if (!quantidade || quantidade <= 0) {
-    return res.status(400).json({ erro: 'Quantidade deve ser maior que zero' });
-  }
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT * FROM produtos WHERE id = ? FOR UPDATE', [id]);
-    if (rows.length === 0) {
-      await conn.rollback();
-      return res.status(404).json({ erro: 'Produto não encontrado' });
-    }
-    const produto = rows[0];
-    if (quantidade > produto.estoque) {
-      await conn.rollback();
-      return res.status(400).json({ erro: 'Estoque insuficiente' });
-    }
-    const data = new Date();
-
-    await conn.query('UPDATE produtos SET estoque = estoque - ? WHERE id = ?', [quantidade, id]);
-
-    const motivo = req.body.motivo || 'Ajuste manual';
-    const [movResult] = await conn.query(
-      `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data) VALUES (?, 'saida', ?, ?, ?)`,
-      [id, quantidade, motivo, data]
-    );
-
-    await conn.commit();
-    const [produtoAtualizado] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-    const [movimentoRows] = await pool.query('SELECT * FROM movimentos_estoque WHERE id = ?', [movResult.insertId]);
-    res.status(201).json({ produto: mapProduto(produtoAtualizado[0]), movimento: mapMovimento(movimentoRows[0]) });
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
-}));
-
-router.get('/:id/movimentos', asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const [rows] = await pool.query(
-    'SELECT * FROM movimentos_estoque WHERE produto_id = ? ORDER BY data DESC, id DESC',
-    [id]
-  );
-  res.json(rows.map(mapMovimento));
 }));
 
 module.exports = router;

@@ -20,10 +20,11 @@ function mapPedido(row) {
 
 function mapItem(row) {
   return {
-    produtoId: row.produto_id,
+    skuId: row.sku_id,
     quantidade: row.quantidade,
     precoUnitCusto: row.preco_unit_custo,
-    produtoNome: row.produto_nome || '(produto removido)'
+    skuCodigo: row.sku_codigo || undefined,
+    skuNome: row.sku_nome || '(SKU removido)'
   };
 }
 
@@ -40,9 +41,9 @@ async function buscarPedidosComItens(whereSql = '', params = []) {
 
   const ids = pedidoRows.map(p => p.id);
   const [itemRows] = await pool.query(
-    `SELECT pi.*, prod.nome AS produto_nome
+    `SELECT pi.*, s.codigo AS sku_codigo, s.nome AS sku_nome
      FROM pedido_itens pi
-     LEFT JOIN produtos prod ON prod.id = pi.produto_id
+     LEFT JOIN skus s ON s.id = pi.sku_id
      WHERE pi.pedido_id IN (?)`,
     [ids]
   );
@@ -90,37 +91,33 @@ router.post('/', asyncHandler(async (req, res) => {
     }
     const fornecedor = fornecedorRows[0];
 
-    const produtoIds = [...new Set(itens.map(i => Number(i.produtoId)))];
-    const [produtoRows] = await conn.query('SELECT * FROM produtos WHERE id IN (?) FOR UPDATE', [produtoIds]);
-    const produtosPorId = Object.fromEntries(produtoRows.map(p => [p.id, p]));
+    const skuIds = [...new Set(itens.map(i => Number(i.skuId)))];
+    const [skuRows] = await conn.query('SELECT * FROM skus WHERE id IN (?) FOR UPDATE', [skuIds]);
+    const skusPorId = Object.fromEntries(skuRows.map(s => [s.id, s]));
 
-    // Junta linhas do mesmo produto (com o mesmo preço unitário) em uma única, somando as quantidades
+    // Junta linhas do mesmo SKU (com o mesmo preço unitário) em uma única, somando as quantidades
     const itensPorChave = new Map();
     for (const item of itens) {
-      const produto = produtosPorId[Number(item.produtoId)];
-      if (!produto) {
+      const sku = skusPorId[Number(item.skuId)];
+      if (!sku) {
         await conn.rollback();
-        return res.status(400).json({ erro: `Produto ${item.produtoId} não encontrado` });
+        return res.status(400).json({ erro: `SKU ${item.skuId} não encontrado` });
       }
       const quantidade = Number(item.quantidade);
       if (!quantidade || quantidade <= 0) {
         await conn.rollback();
-        return res.status(400).json({ erro: `Quantidade inválida para ${produto.nome}` });
+        return res.status(400).json({ erro: `Quantidade inválida para ${sku.nome}` });
       }
       const precoUnitCusto = Number(item.precoUnitCusto);
       if (isNaN(precoUnitCusto) || precoUnitCusto < 0) {
         await conn.rollback();
-        return res.status(400).json({ erro: `Preço unitário inválido para ${produto.nome}` });
+        return res.status(400).json({ erro: `Preço unitário inválido para ${sku.nome}` });
       }
-      const chave = `${produto.id}|${precoUnitCusto}`;
+      const chave = `${sku.id}|${precoUnitCusto}`;
       if (itensPorChave.has(chave)) {
         itensPorChave.get(chave).quantidade += quantidade;
       } else {
-        itensPorChave.set(chave, {
-          produtoId: produto.id,
-          quantidade,
-          precoUnitCusto
-        });
+        itensPorChave.set(chave, { skuId: sku.id, quantidade, precoUnitCusto });
       }
     }
 
@@ -136,20 +133,19 @@ router.post('/', asyncHandler(async (req, res) => {
     const pedidoId = pedidoResult.insertId;
 
     for (const item of itensProcessados) {
-      const produto = produtosPorId[item.produtoId];
       await conn.query(
-        `INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unit_custo)
+        `INSERT INTO pedido_itens (pedido_id, sku_id, quantidade, preco_unit_custo)
          VALUES (?, ?, ?, ?)`,
-        [pedidoId, item.produtoId, item.quantidade, item.precoUnitCusto]
+        [pedidoId, item.skuId, item.quantidade, item.precoUnitCusto]
       );
       await conn.query(
-        'UPDATE produtos SET estoque = estoque + ?, preco_custo = ? WHERE id = ?',
-        [item.quantidade, item.precoUnitCusto, item.produtoId]
+        'UPDATE skus SET estoque = estoque + ?, preco_custo = ? WHERE id = ?',
+        [item.quantidade, item.precoUnitCusto, item.skuId]
       );
       await conn.query(
-        `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data, pedido_id)
+        `INSERT INTO movimentos_estoque (sku_id, tipo, quantidade, motivo, data, pedido_id)
          VALUES (?, 'entrada', ?, ?, ?, ?)`,
-        [item.produtoId, item.quantidade, `Compra - Pedido #${pedidoId}`, data, pedidoId]
+        [item.skuId, item.quantidade, `Compra - Pedido #${pedidoId}`, data, pedidoId]
       );
     }
 
@@ -193,11 +189,11 @@ router.post('/:id/cancelar', asyncHandler(async (req, res) => {
     const data = new Date();
 
     for (const item of itens) {
-      await conn.query('UPDATE produtos SET estoque = estoque - ? WHERE id = ?', [item.quantidade, item.produto_id]);
+      await conn.query('UPDATE skus SET estoque = estoque - ? WHERE id = ?', [item.quantidade, item.sku_id]);
       await conn.query(
-        `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data, pedido_id)
+        `INSERT INTO movimentos_estoque (sku_id, tipo, quantidade, motivo, data, pedido_id)
          VALUES (?, 'saida', ?, ?, ?, ?)`,
-        [item.produto_id, item.quantidade, `Cancelamento - Pedido #${id}`, data, id]
+        [item.sku_id, item.quantidade, `Cancelamento - Pedido #${id}`, data, id]
       );
     }
 

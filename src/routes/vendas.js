@@ -26,7 +26,8 @@ function mapItem(row) {
     quantidade: row.quantidade,
     precoUnitVenda: row.preco_unit_venda,
     precoUnitCusto: row.preco_unit_custo,
-    produtoNome: row.produto_nome || '(produto removido)'
+    produtoNome: row.produto_nome || '(produto removido)',
+    produtoTipo: row.produto_tipo || undefined
   };
 }
 
@@ -43,7 +44,7 @@ async function buscarVendasComItens(whereSql = '', params = []) {
 
   const ids = vendaRows.map(v => v.id);
   const [itemRows] = await pool.query(
-    `SELECT vi.*, prod.nome AS produto_nome
+    `SELECT vi.*, prod.nome AS produto_nome, prod.tipo AS produto_tipo
      FROM venda_itens vi
      LEFT JOIN produtos prod ON prod.id = vi.produto_id
      WHERE vi.venda_id IN (?)`,
@@ -105,8 +106,9 @@ router.post('/', asyncHandler(async (req, res) => {
     }
     const cliente = clienteRows[0];
 
+    // Itens vendidos diretamente (podem ser produtos 'simples' ou 'kit')
     const produtoIds = [...new Set(itens.map(i => Number(i.produtoId)))];
-    const [produtoRows] = await conn.query('SELECT * FROM produtos WHERE id IN (?) FOR UPDATE', [produtoIds]);
+    const [produtoRows] = await conn.query('SELECT * FROM produtos WHERE id IN (?)', [produtoIds]);
     const produtosPorId = Object.fromEntries(produtoRows.map(p => [p.id, p]));
 
     // Junta linhas do mesmo produto (com o mesmo preço de venda) em uma única, somando as quantidades
@@ -127,21 +129,51 @@ router.post('/', asyncHandler(async (req, res) => {
       if (itensPorChave.has(chave)) {
         itensPorChave.get(chave).quantidade += quantidade;
       } else {
-        itensPorChave.set(chave, {
-          produtoId: produto.id,
-          quantidade,
-          precoUnitVenda,
-          precoUnitCusto: produto.preco_custo
-        });
+        itensPorChave.set(chave, { produtoId: produto.id, quantidade, precoUnitVenda });
+      }
+    }
+    const itensProcessados = [...itensPorChave.values()];
+
+    // Nenhum produto (simples ou kit) tem estoque próprio: a baixa real acontece sempre nos
+    // SKUs que o compõem (produto_skus) — simples tem 1 SKU, kit tem 2+. Carrega a composição
+    // de todo produto vendido e trava (FOR UPDATE) o estoque dos SKUs envolvidos.
+    const [composicaoRows] = await conn.query('SELECT * FROM produto_skus WHERE produto_id IN (?)', [itensProcessados.map(i => i.produtoId)]);
+    const composicaoPorProduto = new Map();
+    for (const row of composicaoRows) {
+      if (!composicaoPorProduto.has(row.produto_id)) composicaoPorProduto.set(row.produto_id, []);
+      composicaoPorProduto.get(row.produto_id).push({ skuId: row.sku_id, quantidade: row.quantidade });
+    }
+
+    for (const item of itensProcessados) {
+      if (!composicaoPorProduto.has(item.produtoId)) {
+        await conn.rollback();
+        return res.status(400).json({ erro: `"${produtosPorId[item.produtoId].nome}" não tem nenhum SKU vinculado e não pode ser vendido` });
       }
     }
 
-    const itensProcessados = [...itensPorChave.values()];
+    const idsSkusNecessarios = [...new Set(composicaoRows.map(r => r.sku_id))];
+    let skusPorId = {};
+    if (idsSkusNecessarios.length > 0) {
+      const [skuRows] = await conn.query('SELECT * FROM skus WHERE id IN (?) FOR UPDATE', [idsSkusNecessarios]);
+      skusPorId = Object.fromEntries(skuRows.map(s => [s.id, s]));
+    }
+
+    // Soma a demanda real de estoque por SKU: venda direta (simples) + consumo via kit
+    const demandaPorSku = new Map();
+    const somarDemanda = (skuId, quantidade) => demandaPorSku.set(skuId, (demandaPorSku.get(skuId) || 0) + quantidade);
     for (const item of itensProcessados) {
-      const produto = produtosPorId[item.produtoId];
-      if (item.quantidade > produto.estoque) {
+      for (const c of composicaoPorProduto.get(item.produtoId) || []) {
+        somarDemanda(c.skuId, c.quantidade * item.quantidade);
+      }
+    }
+
+    for (const [skuId, quantidadeNecessaria] of demandaPorSku) {
+      const sku = skusPorId[skuId];
+      if (quantidadeNecessaria > sku.estoque) {
         await conn.rollback();
-        return res.status(400).json({ erro: `Estoque insuficiente de ${produto.nome} (disponível: ${produto.estoque})` });
+        return res.status(400).json({
+          erro: `Estoque insuficiente de ${sku.nome} (disponível: ${sku.estoque}, necessário: ${quantidadeNecessaria})`
+        });
       }
     }
 
@@ -156,18 +188,30 @@ router.post('/', asyncHandler(async (req, res) => {
     );
     const vendaId = vendaResult.insertId;
 
+    // Grava venda_itens no nível do que foi vendido comercialmente (kit ou simples) e move o
+    // estoque físico real (os SKUs que compõem o produto) — são registros distintos de propósito.
     for (const item of itensProcessados) {
       const produto = produtosPorId[item.produtoId];
+      const composicao = composicaoPorProduto.get(produto.id) || [];
+      const precoUnitCusto = composicao.reduce((soma, c) => soma + skusPorId[c.skuId].preco_custo * c.quantidade, 0);
+      const motivo = produto.tipo === 'kit'
+        ? `Venda #${vendaId} (kit: ${produto.nome} x${item.quantidade})`
+        : `Venda #${vendaId}`;
+
+      for (const c of composicao) {
+        const quantidadeConsumida = c.quantidade * item.quantidade;
+        await conn.query('UPDATE skus SET estoque = estoque - ? WHERE id = ?', [quantidadeConsumida, c.skuId]);
+        await conn.query(
+          `INSERT INTO movimentos_estoque (sku_id, tipo, quantidade, motivo, data, venda_id)
+           VALUES (?, 'saida', ?, ?, ?, ?)`,
+          [c.skuId, quantidadeConsumida, motivo, data, vendaId]
+        );
+      }
+
       await conn.query(
         `INSERT INTO venda_itens (venda_id, produto_id, quantidade, preco_unit_venda, preco_unit_custo)
          VALUES (?, ?, ?, ?, ?)`,
-        [vendaId, item.produtoId, item.quantidade, item.precoUnitVenda, item.precoUnitCusto]
-      );
-      await conn.query('UPDATE produtos SET estoque = estoque - ? WHERE id = ?', [item.quantidade, item.produtoId]);
-      await conn.query(
-        `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data, venda_id)
-         VALUES (?, 'saida', ?, ?, ?, ?)`,
-        [item.produtoId, item.quantidade, `Venda #${vendaId}`, data, vendaId]
+        [vendaId, produto.id, item.quantidade, item.precoUnitVenda, precoUnitCusto]
       );
     }
 
@@ -209,15 +253,21 @@ router.post('/:id/cancelar', asyncHandler(async (req, res) => {
       return res.status(400).json({ erro: 'Venda já está cancelada' });
     }
 
-    const [itens] = await conn.query('SELECT * FROM venda_itens WHERE venda_id = ?', [id]);
+    // Reverte o estoque com base no que foi de fato baixado (movimentos_estoque), não na
+    // composição atual do produto (que pode ter mudado desde a venda) — assim o cancelamento
+    // sempre acerta o SKU físico certo, seja venda de produto simples ou via kit.
+    const [movimentosSaida] = await conn.query(
+      `SELECT * FROM movimentos_estoque WHERE venda_id = ? AND tipo = 'saida'`,
+      [id]
+    );
     const data = new Date();
 
-    for (const item of itens) {
-      await conn.query('UPDATE produtos SET estoque = estoque + ? WHERE id = ?', [item.quantidade, item.produto_id]);
+    for (const mov of movimentosSaida) {
+      await conn.query('UPDATE skus SET estoque = estoque + ? WHERE id = ?', [mov.quantidade, mov.sku_id]);
       await conn.query(
-        `INSERT INTO movimentos_estoque (produto_id, tipo, quantidade, motivo, data, venda_id)
+        `INSERT INTO movimentos_estoque (sku_id, tipo, quantidade, motivo, data, venda_id)
          VALUES (?, 'entrada', ?, ?, ?, ?)`,
-        [item.produto_id, item.quantidade, `Cancelamento - Venda #${id}`, data, id]
+        [mov.sku_id, mov.quantidade, `Cancelamento - Venda #${id}`, data, id]
       );
     }
 

@@ -45,14 +45,48 @@ async function initSchema() {
 
 // MySQL não suporta "ADD COLUMN IF NOT EXISTS", então checamos o information_schema
 // antes de alterar tabelas já existentes (evita erro ao reiniciar com dados reais).
-async function adicionarColunaSeNaoExistir(conn, tabela, coluna, definicaoSql) {
+async function colunaExiste(conn, tabela, coluna) {
   const [rows] = await conn.query(
     `SELECT COUNT(*) AS existe FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
     [dbConfig.database, tabela, coluna]
   );
-  if (rows[0].existe > 0) return;
+  return rows[0].existe > 0;
+}
+
+async function tabelaExiste(conn, tabela) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS existe FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+    [dbConfig.database, tabela]
+  );
+  return rows[0].existe > 0;
+}
+
+async function adicionarColunaSeNaoExistir(conn, tabela, coluna, definicaoSql) {
+  if (await colunaExiste(conn, tabela, coluna)) return;
   await conn.query(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${definicaoSql}`);
+}
+
+async function removerIndiceSeExistir(conn, tabela, indice) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS existe FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [dbConfig.database, tabela, indice]
+  );
+  if (rows[0].existe > 0) {
+    await conn.query(`ALTER TABLE ${tabela} DROP INDEX ${indice}`);
+  }
+}
+
+async function removerForeignKeySeExistir(conn, tabela, coluna) {
+  const [rows] = await conn.query(
+    `SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
+    [dbConfig.database, tabela, coluna]
+  );
+  for (const row of rows) {
+    await conn.query(`ALTER TABLE ${tabela} DROP FOREIGN KEY ${row.CONSTRAINT_NAME}`);
+  }
 }
 
 // Pagamento pendente: permite registrar a venda (e a receita/estoque) no ato,
@@ -68,6 +102,125 @@ async function migrarColunas(conn) {
   // Imagem e tags do produto (ex: "clareador de virilha") para achar o produto certo na hora de dar baixa
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'imagem', 'VARCHAR(255) NULL');
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'tags', "VARCHAR(500) NOT NULL DEFAULT ''");
+
+  // tipo (simples/kit) precisa existir antes da migração de SKU abaixo, que filtra por ele
+  await adicionarColunaSeNaoExistir(conn, 'produtos', 'tipo', "ENUM('simples', 'kit') NOT NULL DEFAULT 'simples'");
+
+  await migrarParaSkuIndependente(conn);
+}
+
+// SKU passou a ser uma entidade própria (tabela `skus`), independente de produto — permite
+// cadastrar um SKU que só será usado como componente de kit, sem precisar de um produto
+// vendável 1:1. Esta migração move bases antigas (onde SKU/custo/estoque viviam direto em
+// `produtos`, e kits usavam `produto_kit_itens` apontando pra outro produto) para o novo
+// modelo (`skus` + `produto_skus`), preservando os dados reais existentes. Cada passo checa
+// o que já foi feito antes de agir, então é seguro rodar em todo start do servidor.
+async function migrarParaSkuIndependente(conn) {
+  // 1) Produtos 'simples' que ainda guardam custo/estoque direto na própria linha (modelo
+  //    antigo) ganham um registro correspondente em `skus` + vínculo em `produto_skus`.
+  if (await colunaExiste(conn, 'produtos', 'preco_custo')) {
+    const temColunaSkuAntiga = await colunaExiste(conn, 'produtos', 'sku');
+    const campos = temColunaSkuAntiga
+      ? 'id, sku, nome, preco_custo, estoque, criado_em'
+      : 'id, NULL AS sku, nome, preco_custo, estoque, criado_em';
+    const [produtosSimples] = await conn.query(`SELECT ${campos} FROM produtos WHERE tipo = 'simples'`);
+
+    for (const produto of produtosSimples) {
+      const codigoDesejado = (produto.sku && String(produto.sku).trim()) || `SKU-${String(produto.id).padStart(4, '0')}`;
+      const [skuExistente] = await conn.query('SELECT id FROM skus WHERE codigo = ?', [codigoDesejado]);
+      let skuId;
+      if (skuExistente.length > 0) {
+        skuId = skuExistente[0].id;
+      } else {
+        const [resultado] = await conn.query(
+          'INSERT INTO skus (codigo, nome, preco_custo, estoque, criado_em) VALUES (?, ?, ?, ?, ?)',
+          [codigoDesejado, produto.nome, produto.preco_custo, produto.estoque, produto.criado_em]
+        );
+        skuId = resultado.insertId;
+      }
+      const [vinculo] = await conn.query('SELECT id FROM produto_skus WHERE produto_id = ? AND sku_id = ?', [produto.id, skuId]);
+      if (vinculo.length === 0) {
+        await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [produto.id, skuId]);
+      }
+    }
+  }
+
+  // 2) Composição de kits antigos (produto_kit_itens: kit_id -> componente_id, um produto
+  //    'simples' já migrado no passo 1 e portanto já tem exatamente 1 SKU vinculado).
+  if (await tabelaExiste(conn, 'produto_kit_itens')) {
+    const [itensAntigos] = await conn.query(
+      `SELECT pki.kit_id, pki.quantidade, ps.sku_id
+       FROM produto_kit_itens pki
+       JOIN produto_skus ps ON ps.produto_id = pki.componente_id`
+    );
+    for (const item of itensAntigos) {
+      const [vinculo] = await conn.query('SELECT id FROM produto_skus WHERE produto_id = ? AND sku_id = ?', [item.kit_id, item.sku_id]);
+      if (vinculo.length === 0) {
+        await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, ?)', [item.kit_id, item.sku_id, item.quantidade]);
+      }
+    }
+    await conn.query('DROP TABLE produto_kit_itens');
+  }
+
+  // 3) pedido_itens.produto_id -> sku_id (todo pedido antigo comprava produto 'simples',
+  //    já com exatamente 1 SKU vinculado a essa altura da migração).
+  if (await colunaExiste(conn, 'pedido_itens', 'produto_id')) {
+    await adicionarColunaSeNaoExistir(conn, 'pedido_itens', 'sku_id', 'INT NULL');
+    await conn.query(
+      `UPDATE pedido_itens pi JOIN produto_skus ps ON ps.produto_id = pi.produto_id
+       SET pi.sku_id = ps.sku_id WHERE pi.sku_id IS NULL`
+    );
+    await removerForeignKeySeExistir(conn, 'pedido_itens', 'produto_id');
+    await conn.query('ALTER TABLE pedido_itens DROP COLUMN produto_id');
+    await conn.query('ALTER TABLE pedido_itens MODIFY sku_id INT NOT NULL');
+    await removerForeignKeySeExistir(conn, 'pedido_itens', 'sku_id');
+    await conn.query('ALTER TABLE pedido_itens ADD CONSTRAINT fk_pedido_itens_sku FOREIGN KEY (sku_id) REFERENCES skus(id)');
+  }
+
+  // 4) movimentos_estoque.produto_id -> sku_id (mesma lógica do passo 3).
+  if (await colunaExiste(conn, 'movimentos_estoque', 'produto_id')) {
+    await adicionarColunaSeNaoExistir(conn, 'movimentos_estoque', 'sku_id', 'INT NULL');
+    await conn.query(
+      `UPDATE movimentos_estoque me JOIN produto_skus ps ON ps.produto_id = me.produto_id
+       SET me.sku_id = ps.sku_id WHERE me.sku_id IS NULL`
+    );
+    await removerForeignKeySeExistir(conn, 'movimentos_estoque', 'produto_id');
+    await conn.query('ALTER TABLE movimentos_estoque DROP COLUMN produto_id');
+    await conn.query('ALTER TABLE movimentos_estoque MODIFY sku_id INT NOT NULL');
+    await removerForeignKeySeExistir(conn, 'movimentos_estoque', 'sku_id');
+    await conn.query('ALTER TABLE movimentos_estoque ADD CONSTRAINT fk_movimentos_sku FOREIGN KEY (sku_id) REFERENCES skus(id) ON DELETE CASCADE');
+  }
+
+  // 5.1) SKU.nome virou a chave de deduplicação prática (código agora é opcional) — bases
+  //      já migradas antes dessa regra existir ainda não têm esse índice único.
+  const [indiceNome] = await conn.query(
+    `SELECT COUNT(*) AS existe FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'skus' AND INDEX_NAME = 'uq_skus_nome'`,
+    [dbConfig.database]
+  );
+  if (indiceNome[0].existe === 0) {
+    await conn.query('ALTER TABLE skus ADD UNIQUE KEY uq_skus_nome (nome)');
+  }
+  const [colunaCodigo] = await conn.query(
+    `SELECT IS_NULLABLE FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'skus' AND COLUMN_NAME = 'codigo'`,
+    [dbConfig.database]
+  );
+  if (colunaCodigo.length > 0 && colunaCodigo[0].IS_NULLABLE === 'NO') {
+    await conn.query('ALTER TABLE skus MODIFY codigo VARCHAR(50) NULL');
+  }
+
+  // 5) Só agora remove de `produtos` o que virou responsabilidade de `skus`.
+  if (await colunaExiste(conn, 'produtos', 'sku')) {
+    await removerIndiceSeExistir(conn, 'produtos', 'uq_produtos_sku');
+    await conn.query('ALTER TABLE produtos DROP COLUMN sku');
+  }
+  if (await colunaExiste(conn, 'produtos', 'preco_custo')) {
+    await conn.query('ALTER TABLE produtos DROP COLUMN preco_custo');
+  }
+  if (await colunaExiste(conn, 'produtos', 'estoque')) {
+    await conn.query('ALTER TABLE produtos DROP COLUMN estoque');
+  }
 }
 
 module.exports = { pool, waitForDb, initSchema };

@@ -1,6 +1,7 @@
 let cacheClientes = [];
 let cacheFornecedores = [];
 let cacheProdutos = [];
+let cacheSkus = [];
 let cacheVendas = [];
 
 const NOMES_MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -11,23 +12,38 @@ function formatarMesLabel(mes) {
 }
 
 // ---------- NAVEGAÇÃO ----------
+const CARREGAR_ABA = {
+  dashboard: () => carregarDashboard(),
+  estoque: () => carregarEstoque(),
+  vendas: () => carregarVendas(),
+  pedidos: () => carregarPedidos(),
+  relatorio: () => buscarRelatorio()
+};
+
+function ativarAba(chave) {
+  const content = document.getElementById('tab-' + chave);
+  if (!content) return false;
+  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+  content.classList.add('active');
+  destacarItemNav(chave);
+  history.replaceState(null, '', '#' + chave);
+  CARREGAR_ABA[chave]?.();
+  return true;
+}
+
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('.tab-btn');
   if (!btn || !btn.dataset.tab) return;
-  const content = document.getElementById('tab-' + btn.dataset.tab);
-  if (!content) return; // não é uma aba desta página: deixa o link navegar normalmente
+  if (!document.getElementById('tab-' + btn.dataset.tab)) return; // não é uma aba desta página: deixa o link navegar normalmente
   e.preventDefault();
-  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-  content.classList.add('active');
-  destacarItemNav(btn.dataset.tab);
-  if (btn.dataset.tab === 'dashboard') carregarDashboard();
-  if (btn.dataset.tab === 'estoque') carregarEstoque();
-  if (btn.dataset.tab === 'vendas') carregarVendas();
-  if (btn.dataset.tab === 'pedidos') carregarPedidos();
-  if (btn.dataset.tab === 'relatorio') buscarRelatorio();
+  ativarAba(btn.dataset.tab);
 });
 
-initSidebar('dashboard');
+// Ao chegar em index.html vindo de outra página (ex: clientes.html -> index.html#vendas),
+// a aba a exibir vem do hash da URL; sem isso a página sempre abria no dashboard.
+const abaInicial = (location.hash || '').replace('#', '');
+const temAbaInicialValida = abaInicial && document.getElementById('tab-' + abaInicial);
+initSidebar(temAbaInicialValida ? abaInicial : 'dashboard');
 
 // ---------- DASHBOARD ----------
 async function carregarDashboard() {
@@ -96,11 +112,16 @@ async function carregarFornecedoresParaSelects() {
   buscaFornecedorPedido.definirFornecedores(cacheFornecedores);
 }
 
-// ---------- PRODUTOS (cadastro fica em produtos.html; aqui só alimentamos os selects de Estoque/Vendas/Pedidos) ----------
+// ---------- PRODUTOS (cadastro fica em produtos.html; aqui só alimentamos o select de Vendas) ----------
 async function carregarProdutosParaSelects() {
   cacheProdutos = await api('GET', '/produtos');
-  buscaProdutoEstoque.definirProdutos(cacheProdutos);
   preencherFiltroProdutosVenda();
+}
+
+// ---------- SKUS (cadastro fica em skus.html; aqui só alimentamos os selects de Estoque/Pedidos) ----------
+async function carregarSkusParaSelects() {
+  cacheSkus = await api('GET', '/skus');
+  buscaSkuEstoque.definirSkus(cacheSkus);
 }
 
 function preencherFiltroProdutosVenda() {
@@ -110,9 +131,9 @@ function preencherFiltroProdutosVenda() {
   Array.from(select.options).forEach(o => { o.selected = selecionados.has(o.value); });
 }
 
-// ---------- ESTOQUE ----------
+// ---------- ESTOQUE (sempre movimenta o SKU — a unidade física de verdade) ----------
 const formEstoque = document.getElementById('form-estoque');
-const buscaProdutoEstoque = criarBuscaProduto(document.getElementById('busca-produto-estoque'), { nomeCampo: 'produtoId' });
+const buscaSkuEstoque = criarBuscaSku(document.getElementById('busca-sku-estoque'), { nomeCampo: 'skuId' });
 
 async function carregarEstoque() {
   const movimentos = await api('GET', '/estoque');
@@ -120,7 +141,7 @@ async function carregarEstoque() {
   tbody.innerHTML = movimentos.map(m => `
     <tr>
       <td>${formatarData(m.data)}</td>
-      <td>${m.produtoNome}</td>
+      <td>${m.skuCodigo ? `${m.skuCodigo} — ${m.skuNome}` : m.skuNome}</td>
       <td>${m.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td>
       <td>${m.quantidade}</td>
       <td>${m.motivo || ''}</td>
@@ -130,8 +151,8 @@ async function carregarEstoque() {
 
 formEstoque.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const produtoId = buscaProdutoEstoque.obterProdutoId();
-  if (!produtoId) { alert('Selecione um produto'); return; }
+  const skuId = buscaSkuEstoque.obterSkuId();
+  if (!skuId) { alert('Selecione um SKU'); return; }
   const tipo = formEstoque.tipo.value;
   const dados = {
     quantidade: formEstoque.quantidade.value,
@@ -139,9 +160,10 @@ formEstoque.addEventListener('submit', async (e) => {
     custoTotal: formEstoque.custoTotal.value || undefined
   };
   try {
-    await api('POST', `/produtos/${produtoId}/${tipo}`, dados);
+    await api('POST', `/skus/${skuId}/${tipo}`, dados);
     formEstoque.reset();
-    buscaProdutoEstoque.limpar();
+    buscaSkuEstoque.limpar();
+    await carregarSkusParaSelects();
     await carregarProdutosParaSelects();
     await carregarEstoque();
   } catch (e) { alert(e.message); }
@@ -164,7 +186,7 @@ function novaLinhaItemVenda() {
   inputPreco.value = '0.00';
 
   const buscaProduto = criarBuscaProduto(div.querySelector('.item-produto'), {
-    placeholder: 'Buscar produto por nome ou tag...',
+    placeholder: 'Buscar produto por nome, SKU ou tag...',
     onSelecionar: (p) => {
       inputPreco.value = Number(p.precoVenda).toFixed(2);
       atualizarTotalVenda();
@@ -290,6 +312,7 @@ window.cancelarVenda = async function (id) {
   try {
     await api('POST', `/vendas/${id}/cancelar`);
     await carregarVendas();
+    await carregarSkusParaSelects();
     await carregarProdutosParaSelects();
   } catch (e) { alert(e.message); }
 };
@@ -334,6 +357,7 @@ formVenda.addEventListener('submit', async (e) => {
     campoPrevisaoPagamento.style.display = 'none';
     atualizarTotalVenda();
     await carregarVendas();
+    await carregarSkusParaSelects();
     await carregarProdutosParaSelects();
   } catch (e) { alert(e.message); }
 });
@@ -354,18 +378,18 @@ function novaLinhaItemPedido() {
   const inputPreco = div.querySelector('.item-preco');
   inputPreco.value = '0.00';
 
-  const buscaProduto = criarBuscaProduto(div.querySelector('.item-produto'), {
-    placeholder: 'Buscar produto por nome ou tag...',
-    onSelecionar: (p) => {
-      inputPreco.value = Number(p.precoCusto).toFixed(2);
+  const buscaSku = criarBuscaSku(div.querySelector('.item-produto'), {
+    placeholder: 'Buscar SKU por código ou nome...',
+    onSelecionar: (s) => {
+      inputPreco.value = Number(s.precoCusto).toFixed(2);
       atualizarTotalPedido();
     }
   });
-  buscaProduto.definirProdutos(cacheProdutos);
-  div._buscaProduto = buscaProduto;
+  buscaSku.definirSkus(cacheSkus);
+  div._buscaSku = buscaSku;
 
   div.querySelector('.remover-item').addEventListener('click', () => {
-    buscaProduto.destruir();
+    buscaSku.destruir();
     div.remove();
     atualizarTotalPedido();
   });
@@ -376,7 +400,7 @@ function novaLinhaItemPedido() {
 }
 
 function limparItensPedido() {
-  itensPedidoDiv.querySelectorAll('.item-linha').forEach(linha => linha._buscaProduto.destruir());
+  itensPedidoDiv.querySelectorAll('.item-linha').forEach(linha => linha._buscaSku.destruir());
   itensPedidoDiv.innerHTML = '';
 }
 
@@ -391,8 +415,8 @@ function atualizarTotalPedido() {
 }
 
 document.getElementById('add-item-pedido').addEventListener('click', () => {
-  if (cacheProdutos.length === 0) {
-    alert('Cadastre ao menos um produto antes de criar um pedido.');
+  if (cacheSkus.length === 0) {
+    alert('Cadastre ao menos um SKU antes de criar um pedido.');
     return;
   }
   novaLinhaItemPedido();
@@ -421,6 +445,7 @@ window.cancelarPedido = async function (id) {
   try {
     await api('POST', `/pedidos/${id}/cancelar`);
     await carregarPedidos();
+    await carregarSkusParaSelects();
     await carregarProdutosParaSelects();
   } catch (e) { alert(e.message); }
 };
@@ -430,15 +455,15 @@ formPedido.addEventListener('submit', async (e) => {
   const fornecedorId = buscaFornecedorPedido.obterFornecedorId();
   if (!fornecedorId) { alert('Selecione um fornecedor'); return; }
   const linhas = itensPedidoDiv.querySelectorAll('.item-linha');
-  if (linhas.length === 0) { alert('Adicione ao menos um produto'); return; }
+  if (linhas.length === 0) { alert('Adicione ao menos um SKU'); return; }
 
-  if (Array.from(linhas).some(linha => !linha._buscaProduto.obterProdutoId())) {
-    alert('Selecione o produto em todos os itens do pedido');
+  if (Array.from(linhas).some(linha => !linha._buscaSku.obterSkuId())) {
+    alert('Selecione o SKU em todos os itens do pedido');
     return;
   }
 
   const itens = Array.from(linhas).map(linha => ({
-    produtoId: Number(linha._buscaProduto.obterProdutoId()),
+    skuId: Number(linha._buscaSku.obterSkuId()),
     quantidade: Number(linha.querySelector('.item-quantidade').value),
     precoUnitCusto: Number(linha.querySelector('.item-preco').value)
   }));
@@ -455,6 +480,7 @@ formPedido.addEventListener('submit', async (e) => {
     limparItensPedido();
     atualizarTotalPedido();
     await carregarPedidos();
+    await carregarSkusParaSelects();
     await carregarProdutosParaSelects();
   } catch (e) { alert(e.message); }
 });
@@ -488,6 +514,11 @@ selectVisaoRelatorio.addEventListener('change', buscarRelatorio);
 (async function init() {
   await carregarClientesParaSelects();
   await carregarFornecedoresParaSelects();
+  await carregarSkusParaSelects();
   await carregarProdutosParaSelects();
-  await carregarDashboard();
+  if (temAbaInicialValida) {
+    ativarAba(abaInicial);
+  } else {
+    await carregarDashboard();
+  }
 })();
