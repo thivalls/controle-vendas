@@ -117,7 +117,10 @@ body {
 }
 
 .tab-btn {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   background: transparent;
   border: none;
   border-left: 3px solid transparent;
@@ -142,6 +145,24 @@ body {
   color: var(--sidebar-active-text);
   font-weight: 600;
 }
+
+.tab-btn-badge {
+  flex: 0 0 auto;
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+}
+
+.tab-btn.active .tab-btn-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--sidebar-active-text);
+}
+
+.tab-btn-badge:empty { display: none; }
 
 /* ---------- ÁREA PRINCIPAL ---------- */
 .main-area {

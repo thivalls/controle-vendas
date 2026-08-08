@@ -39,7 +39,7 @@ const NAV_CONFIG = [
   { grupo: 'Cadastros', chave: 'cadastros', itens: [
     { chave: 'clientes', rotulo: 'Clientes', href: 'clientes.html' },
     { chave: 'fornecedores', rotulo: 'Fornecedores', href: 'fornecedores.html' },
-    { chave: 'produtos', rotulo: 'Produtos', href: 'produtos.html' },
+    { chave: 'produtos', rotulo: 'Produtos', href: 'produtos.html', badge: true },
     { chave: 'skus', rotulo: 'SKUs', href: 'skus.html' }
   ]},
   { grupo: 'Operações', chave: 'operacoes', itens: [
@@ -65,7 +65,7 @@ function initSidebar(chaveAtiva) {
     <div class="nav-group" data-group="${grupo.chave}">
       <button type="button" class="nav-group-header">${grupo.grupo}</button>
       <div class="nav-group-items">
-        ${grupo.itens.map(item => `<a href="${item.href}" data-tab="${item.chave}" class="tab-btn">${item.rotulo}</a>`).join('')}
+        ${grupo.itens.map(item => `<a href="${item.href}" data-tab="${item.chave}" class="tab-btn">${item.rotulo}${item.badge ? `<span class="tab-btn-badge" id="badge-nav-${item.chave}"></span>` : ''}</a>`).join('')}
       </div>
     </div>
   `).join('');
@@ -106,4 +106,21 @@ function initSidebar(chaveAtiva) {
       salvarGruposColapsados();
     }
   });
+
+  atualizarBadgesNav();
+}
+
+// Badges numéricos no menu lateral (ex: quantidade de produtos cadastrados). Roda em toda
+// página, já que o menu lateral aparece em todas — falha silenciosamente se a API não
+// responder, pra não travar a navegação por causa de um indicador visual.
+async function atualizarBadgesNav() {
+  const badgeProdutos = document.getElementById('badge-nav-produtos');
+  if (badgeProdutos) {
+    try {
+      const produtos = await api('GET', '/produtos');
+      badgeProdutos.textContent = produtos.length;
+    } catch {
+      badgeProdutos.hidden = true;
+    }
+  }
 }
