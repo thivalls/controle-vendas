@@ -104,6 +104,34 @@ async function carregarClientesParaSelects() {
   buscaClienteFiltroVendas.definirClientes(cacheClientes);
 }
 
+// Cadastro rápido de cliente direto na Nova Venda, sem sair da tela
+const modalNovoCliente = criarModal(document.getElementById('modal-novo-cliente'));
+const formModalCliente = document.getElementById('form-modal-cliente');
+
+document.getElementById('btn-novo-cliente-venda').addEventListener('click', () => {
+  formModalCliente.reset();
+  modalNovoCliente.abrir();
+  formModalCliente.nome.focus();
+});
+
+formModalCliente.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const dados = {
+    nome: formModalCliente.nome.value,
+    telefone: formModalCliente.telefone.value,
+    email: formModalCliente.email.value,
+    endereco: formModalCliente.endereco.value
+  };
+  try {
+    const cliente = await api('POST', '/clientes', dados);
+    cacheClientes.push(cliente);
+    buscaClienteVenda.definirClientes(cacheClientes);
+    buscaClienteFiltroVendas.definirClientes(cacheClientes);
+    buscaClienteVenda.definirCliente(cliente);
+    modalNovoCliente.fechar();
+  } catch (e) { alert(e.message); }
+});
+
 // ---------- FORNECEDORES (cadastro fica em fornecedores.html; aqui só alimentamos o select de Pedidos) ----------
 const buscaFornecedorPedido = criarBuscaFornecedor(document.getElementById('busca-fornecedor-pedido'));
 

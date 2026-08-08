@@ -922,6 +922,62 @@ tbody tr:last-child td { border-bottom: none; }
   white-space: nowrap;
 }
 
+/* Campo com botão de ação ao lado (ex: + Novo cliente ao lado do select de busca) */
+.campo-com-botao {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.campo-com-botao > *:first-child { flex: 1 1 auto; min-width: 0; }
+.campo-com-botao > button { flex: 0 0 auto; white-space: nowrap; }
+
+/* ---------- MODAL ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal-overlay[hidden] { display: none; }
+
+.modal-caixa {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.modal-cabecalho h3 { margin: 0; }
+
+.modal-cabecalho .modal-fechar {
+  background: none;
+  border: none;
+  color: var(--text-subtle);
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.modal-cabecalho .modal-fechar:hover { color: var(--text); }
+
 /* ---------- AÇÕES EM TABELA ---------- */
 .acoes { white-space: nowrap; }
 

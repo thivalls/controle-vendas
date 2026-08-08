@@ -27,6 +27,7 @@ function criarBuscaCliente(container, opcoes = {}) {
   return {
     definirClientes: base.definirItens,
     obterClienteId: base.obterValor,
+    definirCliente: base.definirValor,
     limpar: base.limpar,
     destruir: base.destruir
   };

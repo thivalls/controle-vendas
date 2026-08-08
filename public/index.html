@@ -84,7 +84,10 @@
           <form id="form-venda">
             <div class="form-inline">
               <label class="field field-larga">Cliente *
-                <div id="busca-cliente-venda"></div>
+                <div class="campo-com-botao">
+                  <div id="busca-cliente-venda"></div>
+                  <button type="button" id="btn-novo-cliente-venda" class="secundario">+ Novo cliente</button>
+                </div>
               </label>
               <label class="field">Forma de pagamento
                 <select name="formaPagamento" id="select-forma-pagamento-venda"></select>
@@ -221,6 +224,35 @@
 
 </div>
 
+<div id="modal-novo-cliente" class="modal-overlay" hidden>
+  <div class="modal-caixa">
+    <div class="modal-cabecalho">
+      <h3>Novo Cliente</h3>
+      <button type="button" class="modal-fechar" aria-label="Fechar">×</button>
+    </div>
+    <form id="form-modal-cliente">
+      <div class="form-inline">
+        <label class="field field-larga">Nome *
+          <input type="text" name="nome" placeholder="Ex: Maria Silva" required>
+        </label>
+        <label class="field">Telefone
+          <input type="text" name="telefone" placeholder="(11) 99999-0000">
+        </label>
+        <label class="field">E-mail
+          <input type="email" name="email" placeholder="nome@email.com">
+        </label>
+        <label class="field field-larga">Endereço
+          <input type="text" name="endereco" placeholder="Rua, número, bairro">
+        </label>
+      </div>
+      <div class="form-acoes">
+        <button type="submit">Cadastrar Cliente</button>
+        <button type="button" class="secundario modal-fechar">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="js/common.js"></script>
 <script src="js/enums.js"></script>
 <script src="js/select-enum.js"></script>
@@ -229,6 +261,7 @@
 <script src="js/produto-busca.js"></script>
 <script src="js/sku-busca.js"></script>
 <script src="js/entidade-busca.js"></script>
+<script src="js/modal.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
