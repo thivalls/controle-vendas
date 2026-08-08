@@ -17,7 +17,7 @@ const CARREGAR_ABA = {
   estoque: () => carregarEstoque(),
   vendas: () => carregarVendas(),
   pedidos: () => carregarPedidos(),
-  relatorio: () => buscarRelatorio()
+  relatorio: () => carregarRelatorio()
 };
 
 function ativarAba(chave) {
@@ -97,11 +97,16 @@ const buscaClienteFiltroVendas = criarBuscaCliente(document.getElementById('busc
   placeholder: 'Todos os clientes...',
   onSelecionar: () => renderVendasFiltradas()
 });
+const buscaClienteRelatorio = criarBuscaCliente(document.getElementById('busca-cliente-relatorio'), {
+  placeholder: 'Todos os clientes...',
+  onSelecionar: () => renderRelatorio()
+});
 
 async function carregarClientesParaSelects() {
   cacheClientes = await api('GET', '/clientes');
   buscaClienteVenda.definirClientes(cacheClientes);
   buscaClienteFiltroVendas.definirClientes(cacheClientes);
+  buscaClienteRelatorio.definirClientes(cacheClientes);
 }
 
 // Cadastro rápido de cliente direto na Nova Venda, sem sair da tela
@@ -146,10 +151,16 @@ const buscaProdutosFiltroVendas = criarMultiSelectBusca(document.getElementById(
   getTextoPesquisavel: (p) => [p.sku, p.nome, ...(p.tags || [])].join(' '),
   onAlterar: () => renderVendasFiltradas()
 });
+const buscaProdutosRelatorio = criarMultiSelectBusca(document.getElementById('busca-produtos-relatorio'), {
+  placeholder: 'Buscar produto para filtrar...',
+  getTextoPesquisavel: (p) => [p.sku, p.nome, ...(p.tags || [])].join(' '),
+  onAlterar: () => renderRelatorio()
+});
 
 async function carregarProdutosParaSelects() {
   cacheProdutos = await api('GET', '/produtos');
   buscaProdutosFiltroVendas.definirItens(cacheProdutos);
+  buscaProdutosRelatorio.definirItens(cacheProdutos);
 }
 
 // ---------- SKUS (cadastro fica em skus.html; aqui só alimentamos os selects de Estoque/Pedidos) ----------
@@ -286,16 +297,9 @@ function preencherFiltroFormaPagamentoVenda() {
   preencherSelectEnum(select, formas, { comOpcaoVazia: 'Todas' });
 }
 
-function filtrarVendas() {
-  const form = formFiltroVendas;
-  const clienteId = buscaClienteFiltroVendas.obterClienteId();
-  const status = form.status.value;
-  const statusPagamento = form.statusPagamento.value;
-  const formaPagamento = form.formaPagamento.value;
-  const dataInicio = form.dataInicio.value;
-  const dataFim = form.dataFim.value;
-  const produtoIds = buscaProdutosFiltroVendas.obterIds();
-
+// Motor de filtro compartilhado por Vendas realizadas e Relatório — cada tela lê seus
+// próprios campos e passa os critérios aqui, mas a lógica de filtragem é a mesma.
+function filtrarVendasComCriterios({ clienteId, status, statusPagamento, formaPagamento, dataInicio, dataFim, produtoIds }) {
   return cacheVendas.filter(v => {
     if (clienteId && String(v.clienteId) !== clienteId) return false;
     if (status && v.status !== status) return false;
@@ -303,8 +307,21 @@ function filtrarVendas() {
     if (formaPagamento && v.formaPagamento !== formaPagamento) return false;
     if (dataInicio && v.data.slice(0, 10) < dataInicio) return false;
     if (dataFim && v.data.slice(0, 10) > dataFim) return false;
-    if (produtoIds.length > 0 && !v.itens.some(item => produtoIds.includes(item.produtoId))) return false;
+    if (produtoIds && produtoIds.length > 0 && !v.itens.some(item => produtoIds.includes(item.produtoId))) return false;
     return true;
+  });
+}
+
+function filtrarVendas() {
+  const form = formFiltroVendas;
+  return filtrarVendasComCriterios({
+    clienteId: buscaClienteFiltroVendas.obterClienteId(),
+    status: form.status.value,
+    statusPagamento: form.statusPagamento.value,
+    formaPagamento: form.formaPagamento.value,
+    dataInicio: form.dataInicio.value,
+    dataFim: form.dataFim.value,
+    produtoIds: buscaProdutosFiltroVendas.obterIds()
   });
 }
 
@@ -346,7 +363,7 @@ document.getElementById('limpar-filtro-vendas').addEventListener('click', () => 
 });
 
 window.cancelarVenda = async function (id) {
-  if (!confirm('Cancelar esta venda? O estoque será devolvido e, se o pagamento já tiver sido recebido, o valor será estornado no caixa.')) return;
+  if (!confirm('Cancelar esta venda? O estoque será devolvido e, se o pagamento já tiver sido recebido, o valor deixará de contar no relatório.')) return;
   try {
     await api('POST', `/vendas/${id}/cancelar`);
     await carregarVendas();
@@ -356,7 +373,7 @@ window.cancelarVenda = async function (id) {
 };
 
 window.darBaixaVenda = async function (id) {
-  if (!confirm('Confirmar o recebimento desta venda? O valor será lançado como entrada no caixa hoje.')) return;
+  if (!confirm('Confirmar o recebimento desta venda? Ela passará a contar como paga hoje.')) return;
   try {
     await api('POST', `/vendas/${id}/dar-baixa`);
     await carregarVendas();
@@ -518,7 +535,7 @@ async function carregarPedidos() {
 }
 
 window.cancelarPedido = async function (id) {
-  if (!confirm('Cancelar este pedido? A entrada de estoque será revertida e o valor estornado no caixa.')) return;
+  if (!confirm('Cancelar este pedido? A entrada de estoque será revertida.')) return;
   try {
     await api('POST', `/pedidos/${id}/cancelar`);
     await carregarPedidos();
@@ -563,29 +580,86 @@ formPedido.addEventListener('submit', async (e) => {
 });
 
 // ---------- RELATÓRIO ----------
-const inputMes = document.getElementById('input-mes');
-inputMes.value = new Date().toISOString().slice(0, 7);
+const formFiltroRelatorio = document.getElementById('form-filtro-relatorio');
 
-const selectVisaoRelatorio = document.getElementById('select-visao-relatorio');
+// Início do mês atual até hoje: ponto de partida útil, mas "Limpar filtros" zera pra tudo.
+function definirPeriodoRelatorioPadrao() {
+  const hoje = new Date();
+  formFiltroRelatorio.dataInicio.value = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+  formFiltroRelatorio.dataFim.value = hoje.toISOString().slice(0, 10);
+}
+definirPeriodoRelatorioPadrao();
 
-async function buscarRelatorio() {
-  const mes = inputMes.value || new Date().toISOString().slice(0, 7);
-  const visao = selectVisaoRelatorio.value;
-  const r = await api('GET', `/relatorios/mensal?mes=${mes}&visao=${visao}`);
-  const div = document.getElementById('relatorio-resultado');
-  div.innerHTML = `
-    <div class="linha"><span>Vendas concluídas no mês${visao === 'real' ? ' (já pagas)' : ''}</span><span>${r.numeroVendas}</span></div>
-    <div class="linha"><span>Vendas (receita)</span><span>${formatarMoeda(r.vendas)}</span></div>
-    <div class="linha"><span>(-) Custo dos produtos vendidos</span><span>${formatarMoeda(r.custoProdutosVendidos)}</span></div>
-    <div class="linha"><span>(-) Outras despesas</span><span>${formatarMoeda(r.outrasDespesas)}</span></div>
-    <div class="linha lucro ${r.lucro >= 0 ? 'positivo' : 'negativo'}"><span>Lucro do mês</span><span>${formatarMoeda(r.lucro)}</span></div>
-    <p class="dica">Compras de mercadoria no mês (não entram no lucro, viram custo só quando vendidas): ${formatarMoeda(r.comprasDeMercadoria)}</p>
-    ${r.vendasPendentes.numero > 0 ? `<p class="dica">Recebimentos pendentes no mês (aguardando baixa): ${formatarMoeda(r.vendasPendentes.total)} em ${r.vendasPendentes.numero} venda(s)</p>` : ''}
-  `;
+function preencherFiltroFormaPagamentoRelatorio() {
+  const select = document.querySelector('#form-filtro-relatorio select[name=formaPagamento]');
+  const formasEmUso = cacheVendas.map(v => v.formaPagamento).filter(Boolean);
+  const formas = [...new Set([...FORMAS_PAGAMENTO, ...formasEmUso])];
+  preencherSelectEnum(select, formas, { comOpcaoVazia: 'Todas' });
 }
 
-document.getElementById('buscar-relatorio').addEventListener('click', buscarRelatorio);
-selectVisaoRelatorio.addEventListener('change', buscarRelatorio);
+function filtrarRelatorio() {
+  const form = formFiltroRelatorio;
+  return filtrarVendasComCriterios({
+    clienteId: buscaClienteRelatorio.obterClienteId(),
+    status: form.status.value,
+    statusPagamento: form.statusPagamento.value,
+    formaPagamento: form.formaPagamento.value,
+    dataInicio: form.dataInicio.value,
+    dataFim: form.dataFim.value,
+    produtoIds: buscaProdutosRelatorio.obterIds()
+  });
+}
+
+function renderRelatorio() {
+  const vendasFiltradas = filtrarRelatorio();
+
+  // O resumo financeiro considera só vendas concluídas — canceladas não geram receita nem custo,
+  // mas continuam aparecendo na tabela de movimentações abaixo (com o status marcado).
+  const vendasValidas = vendasFiltradas.filter(v => v.status === 'concluido');
+  const totalVendas = vendasValidas.reduce((soma, v) => soma + Number(v.total), 0);
+  const custoProdutosVendidos = vendasValidas.reduce(
+    (soma, v) => soma + v.itens.reduce((s, item) => s + item.quantidade * item.precoUnitCusto, 0),
+    0
+  );
+  const margemBruta = totalVendas - custoProdutosVendidos;
+  const pendentes = vendasValidas.filter(v => v.statusPagamento === 'pendente');
+  const totalPendente = pendentes.reduce((soma, v) => soma + Number(v.total), 0);
+
+  document.getElementById('relatorio-resumo').innerHTML = `
+    <div class="linha"><span>Vendas concluídas no período</span><span>${vendasValidas.length}</span></div>
+    <div class="linha"><span>Total vendido</span><span>${formatarMoeda(totalVendas)}</span></div>
+    <div class="linha"><span>(-) Custo dos produtos vendidos</span><span>${formatarMoeda(custoProdutosVendidos)}</span></div>
+    <div class="linha lucro ${margemBruta >= 0 ? 'positivo' : 'negativo'}"><span>Margem bruta</span><span>${formatarMoeda(margemBruta)}</span></div>
+    ${pendentes.length > 0 ? `<p class="dica">Recebimentos pendentes no período (aguardando baixa): ${formatarMoeda(totalPendente)} em ${pendentes.length} venda(s)</p>` : ''}
+  `;
+
+  const tbody = document.querySelector('#tabela-relatorio-vendas tbody');
+  tbody.innerHTML = vendasFiltradas.map(v => `
+    <tr>
+      <td>#${v.id}</td>
+      <td>${formatarData(v.data)}</td>
+      <td>${v.clienteNome}</td>
+      <td>${formatarMoeda(v.total)}</td>
+      <td><span class="badge ${v.status}">${v.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span></td>
+      <td>${formatarPagamentoVenda(v)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="6">${cacheVendas.length === 0 ? 'Nenhuma venda registrada' : 'Nenhuma venda encontrada com os filtros selecionados'}</td></tr>`;
+}
+
+async function carregarRelatorio() {
+  cacheVendas = await api('GET', '/vendas');
+  preencherFiltroFormaPagamentoRelatorio();
+  renderRelatorio();
+}
+
+formFiltroRelatorio.addEventListener('input', renderRelatorio);
+formFiltroRelatorio.addEventListener('change', renderRelatorio);
+document.getElementById('limpar-filtro-relatorio').addEventListener('click', () => {
+  formFiltroRelatorio.reset();
+  buscaClienteRelatorio.limpar();
+  buscaProdutosRelatorio.limpar();
+  renderRelatorio();
+});
 
 // ---------- INICIALIZAÇÃO ----------
 (async function init() {

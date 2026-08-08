@@ -1,6 +1,6 @@
 # Controle de Vendas
 
-Sistema simples para controlar clientes, fornecedores, produtos, estoque, vendas, pedidos de compra, fluxo de caixa e lucro mensal.
+Sistema simples para controlar clientes, fornecedores, produtos, estoque, vendas, pedidos de compra e relatório de vendas.
 
 Os dados são armazenados num banco **MySQL**, que roda como um serviço dentro do Docker Compose junto com a aplicação. O jeito recomendado de usar é via Docker.
 
@@ -55,8 +55,7 @@ O schema das tabelas é criado automaticamente na primeira execução.
 - **Clientes**: cadastro com nome, telefone, e-mail e endereço.
 - **Fornecedores**: cadastro com nome, telefone, e-mail e endereço, usado nos pedidos de compra.
 - **Produtos**: cadastro com preço de custo, preço de venda e estoque.
-- **Estoque**: registre entradas (quando comprar mais mercadoria) e saídas manuais (perdas/ajustes). Ao registrar uma entrada informando o valor pago, o sistema já lança a saída correspondente no fluxo de caixa. Esses lançamentos avulsos convivem com os Pedidos abaixo — use-os para ajustes pontuais que não sejam uma compra formal.
-- **Vendas**: escolha o cliente e os produtos vendidos. O sistema calcula o total, baixa o estoque automaticamente e lança a entrada no fluxo de caixa. Vendas podem ser canceladas (devolve estoque e estorna o caixa).
-- **Pedidos**: registre uma compra de mercadoria de um fornecedor, com vários produtos, quantidade e preço unitário — igual a uma nota fiscal (o número/data da nota são opcionais). O sistema dá entrada no estoque, atualiza o preço de custo dos produtos com o valor pago e lança a saída correspondente no fluxo de caixa. Pedidos podem ser cancelados (reverte a entrada de estoque e estorna o caixa).
-- **Fluxo de Caixa**: todas as entradas e saídas de dinheiro, incluindo lançamentos manuais (aluguel, embalagem, transporte etc.) e o saldo atual.
-- **Relatório Mensal**: mostra, para o mês escolhido, quanto vendeu, quanto custaram os produtos vendidos, outras despesas e o **lucro do mês** (Vendas − Custo dos produtos vendidos − Outras despesas).
+- **Estoque**: registre entradas (quando comprar mais mercadoria) e saídas manuais (perdas/ajustes). Esses lançamentos avulsos convivem com os Pedidos abaixo — use-os para ajustes pontuais que não sejam uma compra formal.
+- **Vendas**: escolha o cliente e os produtos vendidos, com data da venda e data de pagamento. O sistema calcula o total e baixa o estoque automaticamente. Vendas podem ser canceladas (devolve o estoque).
+- **Pedidos**: registre uma compra de mercadoria de um fornecedor, com vários produtos, quantidade e preço unitário — igual a uma nota fiscal (o número/data da nota são opcionais). O sistema dá entrada no estoque e atualiza o preço de custo dos produtos com o valor pago. Pedidos podem ser cancelados (reverte a entrada de estoque).
+- **Relatório**: lista as vendas com filtros por período, cliente, status, situação de pagamento, forma de pagamento e produtos, mostrando total vendido, custo dos produtos vendidos e margem bruta do período filtrado.

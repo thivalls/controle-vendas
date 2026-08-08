@@ -66,7 +66,7 @@
             </label>
             <button type="submit">Registrar</button>
           </form>
-          <p class="dica">Ao registrar uma <strong>entrada</strong>, se informar o custo total pago, isso já lança automaticamente uma saída no fluxo de caixa.</p>
+          <p class="dica">Ao registrar uma <strong>entrada</strong>, se informar o custo total pago, esse valor já fica registrado para entrar no relatório.</p>
         </div>
         <h3>Histórico de movimentações</h3>
         <div class="table-wrap">
@@ -193,7 +193,7 @@
             <div class="total-pedido">Total: <strong id="total-pedido">R$ 0,00</strong></div>
             <button type="submit">Finalizar Pedido</button>
           </form>
-          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado, o preço de custo é atualizado com o valor pago e uma saída é lançada no fluxo de caixa.</p>
+          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado e o preço de custo é atualizado com o valor pago.</p>
         </div>
 
         <h3>Pedidos realizados</h3>
@@ -207,22 +207,51 @@
 
       <!-- RELATORIO -->
       <section id="tab-relatorio" class="tab-content">
-        <h2>Relatório Mensal de Lucro</h2>
+        <h2>Relatório</h2>
         <div class="panel">
-          <div class="form-inline">
-            <label class="field field-estreita">Mês de referência
-              <input type="month" id="input-mes">
+          <form id="form-filtro-relatorio" class="form-inline">
+            <label class="field field-estreita">De
+              <input type="date" name="dataInicio">
             </label>
-            <label class="field field-estreita">Visão
-              <select id="select-visao-relatorio">
-                <option value="previsao">Previsão (todas as vendas do mês)</option>
-                <option value="real">Real (só o que já foi pago)</option>
+            <label class="field field-estreita">Até
+              <input type="date" name="dataFim">
+            </label>
+            <label class="field">Cliente
+              <div id="busca-cliente-relatorio"></div>
+            </label>
+            <label class="field">Status da venda
+              <select name="status">
+                <option value="">Todos</option>
+                <option value="concluido">Concluído</option>
+                <option value="cancelado">Cancelado</option>
               </select>
             </label>
-            <button id="buscar-relatorio">Buscar</button>
-          </div>
+            <label class="field">Situação do pagamento
+              <select name="statusPagamento">
+                <option value="">Todas</option>
+                <option value="pago">Pago</option>
+                <option value="pendente">Pendente</option>
+              </select>
+            </label>
+            <label class="field">Forma de pagamento
+              <select name="formaPagamento"><option value="">Todas</option></select>
+            </label>
+            <label class="field field-larga">Produtos
+              <div id="busca-produtos-relatorio"></div>
+            </label>
+            <button type="button" id="limpar-filtro-relatorio" class="secundario">Limpar filtros</button>
+          </form>
         </div>
-        <div id="relatorio-resultado" class="panel relatorio"></div>
+
+        <div id="relatorio-resumo" class="panel relatorio"></div>
+
+        <h3>Movimentações no período</h3>
+        <div class="table-wrap">
+          <table id="tabela-relatorio-vendas">
+            <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Total</th><th>Status</th><th>Pagamento</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
     </main>
