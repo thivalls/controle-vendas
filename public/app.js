@@ -259,9 +259,19 @@ document.getElementById('add-item-venda').addEventListener('click', () => {
 });
 
 const campoPrevisaoPagamento = document.getElementById('campo-previsao-pagamento');
+const campoDataPagamento = document.getElementById('campo-data-pagamento');
 formVenda.statusPagamento.addEventListener('change', () => {
-  campoPrevisaoPagamento.style.display = formVenda.statusPagamento.value === 'pendente' ? '' : 'none';
+  const pendente = formVenda.statusPagamento.value === 'pendente';
+  campoPrevisaoPagamento.style.display = pendente ? '' : 'none';
+  campoDataPagamento.style.display = pendente ? 'none' : '';
 });
+
+function definirDatasVendaParaHoje() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  formVenda.data.value = hoje;
+  formVenda.dataPagamento.value = hoje;
+}
+definirDatasVendaParaHoje();
 
 async function carregarVendas() {
   cacheVendas = await api('GET', '/vendas');
@@ -377,12 +387,16 @@ formVenda.addEventListener('submit', async (e) => {
       itens,
       formaPagamento: formVenda.formaPagamento.value,
       statusPagamento: formVenda.statusPagamento.value,
-      previsaoPagamento: formVenda.previsaoPagamento.value || undefined
+      previsaoPagamento: formVenda.previsaoPagamento.value || undefined,
+      data: formVenda.data.value || undefined,
+      dataPagamento: formVenda.dataPagamento.value || undefined
     });
     formVenda.reset();
     buscaClienteVenda.limpar();
     limparItensVenda();
     campoPrevisaoPagamento.style.display = 'none';
+    campoDataPagamento.style.display = '';
+    definirDatasVendaParaHoje();
     atualizarTotalVenda();
     await carregarVendas();
     await carregarSkusParaSelects();

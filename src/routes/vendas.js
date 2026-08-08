@@ -76,7 +76,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
-  const { clienteId, itens, formaPagamento, observacoes, statusPagamento, previsaoPagamento } = req.body;
+  const { clienteId, itens, formaPagamento, observacoes, statusPagamento, previsaoPagamento, data: dataVenda, dataPagamento: dataPagamentoBody } = req.body;
 
   if (!clienteId) return res.status(400).json({ erro: 'Cliente é obrigatório' });
   if (!Array.isArray(itens) || itens.length === 0) {
@@ -93,6 +93,22 @@ router.post('/', asyncHandler(async (req, res) => {
       return res.status(400).json({ erro: 'Previsão de recebimento inválida' });
     }
     previsaoPagamentoValor = previsaoData;
+  }
+  let dataVendaValor = new Date();
+  if (dataVenda) {
+    const dataVendaParseada = new Date(dataVenda);
+    if (Number.isNaN(dataVendaParseada.getTime())) {
+      return res.status(400).json({ erro: 'Data da venda inválida' });
+    }
+    dataVendaValor = dataVendaParseada;
+  }
+  let dataPagamentoValor = dataVendaValor;
+  if (statusPagamentoFinal === 'pago' && dataPagamentoBody) {
+    const dataPagamentoParseada = new Date(dataPagamentoBody);
+    if (Number.isNaN(dataPagamentoParseada.getTime())) {
+      return res.status(400).json({ erro: 'Data de pagamento inválida' });
+    }
+    dataPagamentoValor = dataPagamentoParseada;
   }
 
   const conn = await pool.getConnection();
@@ -178,8 +194,8 @@ router.post('/', asyncHandler(async (req, res) => {
     }
 
     const total = itensProcessados.reduce((soma, i) => soma + i.quantidade * i.precoUnitVenda, 0);
-    const data = new Date();
-    const dataPagamento = statusPagamentoFinal === 'pago' ? data : null;
+    const data = dataVendaValor;
+    const dataPagamento = statusPagamentoFinal === 'pago' ? dataPagamentoValor : null;
 
     const [vendaResult] = await conn.query(
       `INSERT INTO vendas (cliente_id, data, status, forma_pagamento, observacoes, total, status_pagamento, data_pagamento, previsao_pagamento)
@@ -219,7 +235,7 @@ router.post('/', asyncHandler(async (req, res) => {
       await conn.query(
         `INSERT INTO caixa (tipo, categoria, valor, descricao, data, venda_id)
          VALUES ('entrada', 'Venda', ?, ?, ?, ?)`,
-        [total, `Recebimento da Venda #${vendaId} - ${cliente.nome}`, data, vendaId]
+        [total, `Recebimento da Venda #${vendaId} - ${cliente.nome}`, dataPagamento, vendaId]
       );
     }
 
