@@ -253,6 +253,30 @@
   </div>
 </div>
 
+<div id="modal-novo-sku" class="modal-overlay" hidden>
+  <div class="modal-caixa">
+    <div class="modal-cabecalho">
+      <h3>Novo SKU</h3>
+      <button type="button" class="modal-fechar" aria-label="Fechar">×</button>
+    </div>
+    <form id="form-modal-sku">
+      <div class="form-inline">
+        <label class="field">Código (opcional)
+          <input type="text" name="codigo" placeholder="Ex: XPTO-001">
+        </label>
+        <label class="field field-larga">Nome *
+          <input type="text" name="nome" placeholder="Ex: Frasco 100ml" required>
+        </label>
+      </div>
+      <p class="dica">O preço de custo e o estoque desse SKU são definidos ao adicioná-lo no pedido.</p>
+      <div class="form-acoes">
+        <button type="submit">Cadastrar SKU</button>
+        <button type="button" class="secundario modal-fechar">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="js/common.js"></script>
 <script src="js/enums.js"></script>
 <script src="js/select-enum.js"></script>

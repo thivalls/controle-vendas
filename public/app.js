@@ -394,11 +394,44 @@ formVenda.addEventListener('submit', async (e) => {
 const formPedido = document.getElementById('form-pedido');
 const itensPedidoDiv = document.getElementById('itens-pedido');
 
+// Cadastro rápido de SKU direto num item do pedido, sem sair da tela.
+// Preço de custo e estoque desse SKU ficam por conta do próprio item do pedido ao ser finalizado.
+const modalNovoSku = criarModal(document.getElementById('modal-novo-sku'));
+const formModalSku = document.getElementById('form-modal-sku');
+let buscaSkuAlvoModal = null;
+
+function abrirModalNovoSku(buscaSku) {
+  buscaSkuAlvoModal = buscaSku;
+  formModalSku.reset();
+  modalNovoSku.abrir();
+  formModalSku.nome.focus();
+}
+
+formModalSku.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const dados = {
+    codigo: formModalSku.codigo.value,
+    nome: formModalSku.nome.value,
+    precoCusto: 0
+  };
+  try {
+    const sku = await api('POST', '/skus', dados);
+    cacheSkus.push(sku);
+    buscaSkuEstoque.definirSkus(cacheSkus);
+    itensPedidoDiv.querySelectorAll('.item-linha').forEach(linha => linha._buscaSku.definirSkus(cacheSkus));
+    if (buscaSkuAlvoModal) buscaSkuAlvoModal.definirSku(sku);
+    modalNovoSku.fechar();
+  } catch (e) { alert(e.message); }
+});
+
 function novaLinhaItemPedido() {
   const div = document.createElement('div');
   div.className = 'item-linha';
   div.innerHTML = `
-    <div class="item-produto"></div>
+    <div class="item-produto campo-com-botao">
+      <div class="item-produto-campo"></div>
+      <button type="button" class="secundario btn-novo-sku">+ SKU</button>
+    </div>
     <input type="number" class="item-quantidade" min="1" value="1">
     <input type="number" class="item-preco" min="0" step="0.01" placeholder="Preço unitário (R$)">
     <button type="button" class="secundario remover-item">Remover</button>
@@ -406,7 +439,7 @@ function novaLinhaItemPedido() {
   const inputPreco = div.querySelector('.item-preco');
   inputPreco.value = '0.00';
 
-  const buscaSku = criarBuscaSku(div.querySelector('.item-produto'), {
+  const buscaSku = criarBuscaSku(div.querySelector('.item-produto-campo'), {
     placeholder: 'Buscar SKU por código ou nome...',
     onSelecionar: (s) => {
       inputPreco.value = Number(s.precoCusto).toFixed(2);
@@ -415,6 +448,8 @@ function novaLinhaItemPedido() {
   });
   buscaSku.definirSkus(cacheSkus);
   div._buscaSku = buscaSku;
+
+  div.querySelector('.btn-novo-sku').addEventListener('click', () => abrirModalNovoSku(buscaSku));
 
   div.querySelector('.remover-item').addEventListener('click', () => {
     buscaSku.destruir();
