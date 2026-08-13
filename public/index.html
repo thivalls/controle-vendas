@@ -180,6 +180,19 @@
               <label class="field">Data da nota fiscal
                 <input type="date" name="dataNotaFiscal">
               </label>
+              <label class="field">Forma de pagamento
+                <select name="formaPagamento" id="select-forma-pagamento-pedido"></select>
+              </label>
+              <label class="field field-estreita">Quantidade de parcelas
+                <input type="number" name="qtdParcelas" min="1" step="1" value="1">
+              </label>
+              <label class="field field-estreita" id="campo-primeiro-vencimento-pedido">Data do 1º vencimento
+                <input type="date" name="primeiroVencimento">
+              </label>
+              <label class="checkbox-inline">
+                <input type="checkbox" name="naoAtualizaEstoque">
+                Não somar ao estoque (já foi lançado antes)
+              </label>
             </div>
             <p class="itens-label">SKUs do pedido</p>
             <div class="itens-header">
@@ -191,15 +204,23 @@
             <div id="itens-pedido"></div>
             <button type="button" id="add-item-pedido">+ Adicionar SKU</button>
             <div class="total-pedido">Total: <strong id="total-pedido">R$ 0,00</strong></div>
+            <p class="itens-label">Parcelas</p>
+            <div class="itens-header parcelas-header">
+              <span>Parcela</span>
+              <span>Vencimento</span>
+              <span>Valor</span>
+              <span></span>
+            </div>
+            <div id="parcelas-pedido"></div>
             <button type="submit">Finalizar Pedido</button>
           </form>
-          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado e o preço de custo é atualizado com o valor pago.</p>
+          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado e o preço de custo é atualizado com o valor pago. Parcelas pendentes só entram no caixa quando você der baixa nelas.</p>
         </div>
 
         <h3>Pedidos realizados</h3>
         <div class="table-wrap">
           <table id="tabela-pedidos">
-            <thead><tr><th>#</th><th>Data</th><th>Fornecedor</th><th>Nota Fiscal</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Data</th><th>Fornecedor</th><th>Nota Fiscal</th><th>Forma pgto</th><th>Total</th><th>Pagamento</th><th>Estoque</th><th>Status</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -309,6 +330,24 @@
         <button type="button" class="secundario modal-fechar">Cancelar</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="modal-parcelas-pedido" class="modal-overlay" hidden>
+  <div class="modal-caixa">
+    <div class="modal-cabecalho">
+      <h3 id="modal-parcelas-titulo">Parcelas do Pedido</h3>
+      <button type="button" class="modal-fechar" aria-label="Fechar">×</button>
+    </div>
+    <div class="table-wrap">
+      <table id="tabela-modal-parcelas">
+        <thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="form-acoes">
+      <button type="button" class="secundario modal-fechar">Fechar</button>
+    </div>
   </div>
 </div>
 

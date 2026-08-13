@@ -94,6 +94,21 @@ CREATE TABLE IF NOT EXISTS pedidos (
   FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Parcela de pagamento do pedido ao fornecedor. Todo pedido tem ao menos 1 parcela (à vista
+-- = 1 parcela). O caixa só recebe a saída quando a parcela é de fato paga (dar-baixa), nunca
+-- na criação do pedido — assim uma compra parcelada não derruba o caixa num valor que ainda
+-- não saiu do bolso.
+CREATE TABLE IF NOT EXISTS pedido_parcelas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pedido_id INT NOT NULL,
+  numero INT NOT NULL,
+  valor DECIMAL(10,2) NOT NULL,
+  data_vencimento DATE NOT NULL,
+  status_pagamento ENUM('pago', 'pendente') NOT NULL DEFAULT 'pendente',
+  data_pagamento DATETIME NULL,
+  FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS pedido_itens (
   id INT AUTO_INCREMENT PRIMARY KEY,
   pedido_id INT NOT NULL,

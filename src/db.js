@@ -103,10 +103,35 @@ async function migrarColunas(conn) {
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'imagem', 'VARCHAR(255) NULL');
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'tags', "VARCHAR(500) NOT NULL DEFAULT ''");
 
+  await adicionarColunaSeNaoExistir(conn, 'pedidos', 'forma_pagamento', "VARCHAR(100) NOT NULL DEFAULT ''");
+  // Default 1 preserva o comportamento de todo pedido já existente (sempre deu entrada no estoque).
+  await adicionarColunaSeNaoExistir(conn, 'pedidos', 'atualiza_estoque', 'TINYINT(1) NOT NULL DEFAULT 1');
+  await migrarParcelasPedidosAntigos(conn);
+
   // tipo (simples/kit) precisa existir antes da migração de SKU abaixo, que filtra por ele
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'tipo', "ENUM('simples', 'kit') NOT NULL DEFAULT 'simples'");
 
   await migrarParaSkuIndependente(conn);
+}
+
+// Pedidos antigos sempre foram pagos à vista na hora (o caixa já recebeu a saída na criação),
+// só não existia o conceito de parcela ainda. Aqui cada pedido sem nenhuma parcela ganha uma
+// parcela única já marcada como paga, refletindo o que já aconteceu de fato — não mexe no
+// caixa (que já está correto), só preenche o histórico de parcelas pra a tela funcionar.
+async function migrarParcelasPedidosAntigos(conn) {
+  if (!(await tabelaExiste(conn, 'pedido_parcelas'))) return;
+  const [pedidosSemParcela] = await conn.query(
+    `SELECT p.id, p.data, p.total FROM pedidos p
+     LEFT JOIN pedido_parcelas pp ON pp.pedido_id = p.id
+     WHERE pp.id IS NULL`
+  );
+  for (const pedido of pedidosSemParcela) {
+    await conn.query(
+      `INSERT INTO pedido_parcelas (pedido_id, numero, valor, data_vencimento, status_pagamento, data_pagamento)
+       VALUES (?, 1, ?, ?, 'pago', ?)`,
+      [pedido.id, pedido.total, pedido.data, pedido.data]
+    );
+  }
 }
 
 // SKU passou a ser uma entidade própria (tabela `skus`), independente de produto — permite

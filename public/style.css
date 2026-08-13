@@ -425,6 +425,22 @@ tbody tr:last-child td { border-bottom: none; }
 .itens-header .col-preco { flex: 0 0 140px; }
 .itens-header .col-acao { flex: 0 0 90px; }
 
+.parcelas-header span:nth-child(1) { flex: 0 0 70px; }
+.parcelas-header span:nth-child(2) { flex: 0 0 160px; }
+.parcelas-header span:nth-child(3) { flex: 0 0 140px; }
+.parcelas-header span:nth-child(4) { flex: 1 1 auto; }
+
+.parcela-linha {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+.parcela-linha .parcela-numero { flex: 0 0 70px; font-weight: 600; }
+.parcela-linha .parcela-vencimento { flex: 0 0 160px; }
+.parcela-linha .parcela-valor { flex: 0 0 140px; color: var(--text-muted); }
+.parcela-linha .parcela-paga-label { flex: 1 1 auto; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-muted); }
+
 .item-linha {
   display: flex;
   gap: 0.5rem;
@@ -1072,6 +1088,7 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.cancelado { background: var(--danger-soft); color: var(--danger-soft-text); }
 .badge.pago { background: var(--success-soft); color: var(--success-soft-text); }
 .badge.pendente { background: var(--warning-soft); color: var(--warning-soft-text); }
+.badge.parcial { background: var(--primary-soft); color: var(--primary-soft-text); }
 .badge.simples { background: var(--primary-soft); color: var(--primary-soft-text); }
 .badge.kit { background: var(--warning-soft); color: var(--warning-soft-text); }
 
