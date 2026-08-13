@@ -4,7 +4,7 @@ const asyncHandler = require('../asyncHandler');
 
 const router = express.Router();
 
-function mapLancamento(row) {
+function mapCaixa(row) {
   return {
     id: row.id,
     tipo: row.tipo,
@@ -13,97 +13,61 @@ function mapLancamento(row) {
     descricao: row.descricao,
     data: row.data,
     vendaId: row.venda_id || undefined,
-    pedidoId: row.pedido_id || undefined
+    pedidoId: row.pedido_id || undefined,
+    manual: row.venda_id === null && row.pedido_id === null
   };
 }
 
+// Lista todo o caixa: lançamentos automáticos (de vendas/pedidos) e manuais (lançados aqui
+// direto, ex: rendimento de banco, taxa, saída avulsa) — visão única pra bater com o extrato.
 router.get('/', asyncHandler(async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM caixa ORDER BY data DESC, id DESC');
-  const lancamentos = rows.map(mapLancamento);
-
-  const saldo = lancamentos.reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), 0);
-  const totalEntradas = lancamentos.filter(l => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0);
-  const totalSaidas = lancamentos.filter(l => l.tipo === 'saida').reduce((s, l) => s + l.valor, 0);
-
-  res.json({ lancamentos, saldo, totalEntradas, totalSaidas });
+  res.json(rows.map(mapCaixa));
 }));
 
-router.get('/:id', asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [id]);
-  if (rows.length === 0) return res.status(404).json({ erro: 'Lançamento não encontrado' });
-  res.json(mapLancamento(rows[0]));
-}));
-
-// Lançamento manual (ex: aluguel, embalagens, transporte, aporte de capital)
+// Lançamento manual: sempre sem venda_id/pedido_id — o que vem de uma venda ou pedido é
+// gerado automaticamente pelas próprias rotas de vendas/pedidos, nunca por aqui.
 router.post('/', asyncHandler(async (req, res) => {
   const { tipo, categoria, valor, descricao, data } = req.body;
+
   if (tipo !== 'entrada' && tipo !== 'saida') {
     return res.status(400).json({ erro: 'Tipo deve ser "entrada" ou "saida"' });
   }
   const valorNum = Number(valor);
-  if (!valorNum || valorNum <= 0) {
-    return res.status(400).json({ erro: 'Valor deve ser maior que zero' });
+  if (isNaN(valorNum) || valorNum <= 0) {
+    return res.status(400).json({ erro: 'Valor inválido' });
   }
-  const dataValor = data ? new Date(data) : new Date();
-  const [result] = await pool.query(
-    'INSERT INTO caixa (tipo, categoria, valor, descricao, data) VALUES (?, ?, ?, ?, ?)',
-    [tipo, categoria || 'Outros', valorNum, descricao || '', dataValor]
-  );
-  const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [result.insertId]);
-  res.status(201).json(mapLancamento(rows[0]));
-}));
-
-// Só permite editar lançamentos manuais (não vinculados a vendas ou pedidos)
-router.put('/:id', asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [id]);
-  if (rows.length === 0) return res.status(404).json({ erro: 'Lançamento não encontrado' });
-  const atual = rows[0];
-  if (atual.venda_id) {
-    return res.status(400).json({ erro: 'Este lançamento é gerado automaticamente por uma venda e não pode ser editado diretamente. Cancele a venda em vez disso.' });
-  }
-  if (atual.pedido_id) {
-    return res.status(400).json({ erro: 'Este lançamento é gerado automaticamente por um pedido e não pode ser editado diretamente. Cancele o pedido em vez disso.' });
-  }
-  const { tipo, categoria, valor, descricao } = req.body;
-  if (tipo !== undefined && tipo !== 'entrada' && tipo !== 'saida') {
-    return res.status(400).json({ erro: 'Tipo deve ser "entrada" ou "saida"' });
-  }
-  let valorNum = atual.valor;
-  if (valor !== undefined) {
-    valorNum = Number(valor);
-    if (!valorNum || valorNum <= 0) {
-      return res.status(400).json({ erro: 'Valor deve ser maior que zero' });
+  let dataValor = new Date();
+  if (data) {
+    dataValor = new Date(data);
+    if (Number.isNaN(dataValor.getTime())) {
+      return res.status(400).json({ erro: 'Data inválida' });
     }
   }
-  await pool.query(
-    'UPDATE caixa SET tipo = ?, categoria = ?, valor = ?, descricao = ? WHERE id = ?',
-    [
-      tipo !== undefined ? tipo : atual.tipo,
-      categoria !== undefined ? (categoria || 'Outros') : atual.categoria,
-      valorNum,
-      descricao !== undefined ? descricao : atual.descricao,
-      id
-    ]
+
+  const [result] = await pool.query(
+    `INSERT INTO caixa (tipo, categoria, valor, descricao, data) VALUES (?, ?, ?, ?, ?)`,
+    [tipo, (categoria || '').trim() || 'Outros', valorNum, descricao || '', dataValor]
   );
-  const [atualizado] = await pool.query('SELECT * FROM caixa WHERE id = ?', [id]);
-  res.json(mapLancamento(atualizado[0]));
+  const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [result.insertId]);
+  res.status(201).json(mapCaixa(rows[0]));
 }));
 
-// Só permite excluir lançamentos manuais (não vinculados a vendas ou pedidos)
+// Exclui um lançamento — só permite os manuais. Os automáticos (venda_id/pedido_id) são
+// histórico de uma venda/pedido de verdade e só devem ser desfeitos cancelando o registro
+// de origem, senão o caixa fica dessincronizado do que realmente aconteceu lá.
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   const [rows] = await pool.query('SELECT * FROM caixa WHERE id = ?', [id]);
-  if (rows.length === 0) return res.status(404).json({ erro: 'Lançamento não encontrado' });
-  if (rows[0].venda_id) {
-    return res.status(400).json({ erro: 'Este lançamento é gerado automaticamente por uma venda e não pode ser excluído diretamente. Cancele a venda em vez disso.' });
+  if (rows.length === 0) {
+    return res.status(404).json({ erro: 'Lançamento não encontrado' });
   }
-  if (rows[0].pedido_id) {
-    return res.status(400).json({ erro: 'Este lançamento é gerado automaticamente por um pedido e não pode ser excluído diretamente. Cancele o pedido em vez disso.' });
+  const lancamento = rows[0];
+  if (lancamento.venda_id || lancamento.pedido_id) {
+    return res.status(400).json({ erro: 'Este lançamento pertence a uma venda ou pedido — cancele o registro de origem em vez de excluir aqui' });
   }
   await pool.query('DELETE FROM caixa WHERE id = ?', [id]);
-  res.status(204).end();
+  res.status(204).send();
 }));
 
 module.exports = router;

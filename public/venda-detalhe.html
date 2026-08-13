@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="titulo-pagina">Venda · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2 id="titulo-formulario">Venda</h2>
+        <a href="index.html#vendas" class="botao secundario">Voltar</a>
+      </div>
+
+      <h3>Produtos da venda</h3>
+      <div class="table-wrap">
+        <table id="tabela-itens-venda">
+          <thead><tr><th>Produto</th><th>Quantidade</th><th>Preço unitário</th><th>Subtotal</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="total-pedido">Total: <strong id="total-itens-venda">R$ 0,00</strong></div>
+
+      <h3>Dados da venda</h3>
+      <div class="panel">
+        <form id="form-venda-detalhe">
+          <input type="hidden" name="id">
+          <div class="form-inline">
+            <label class="field field-larga">Cliente *
+              <div id="busca-cliente-venda-detalhe"></div>
+            </label>
+            <label class="field">Forma de pagamento
+              <select name="formaPagamento" id="select-forma-pagamento-venda-detalhe"></select>
+            </label>
+            <label class="field">Situação do pagamento
+              <select name="statusPagamento">
+                <option value="pago">Pago</option>
+                <option value="pendente">Pendente (a receber depois)</option>
+              </select>
+            </label>
+            <label class="field field-estreita">Data da venda
+              <input type="date" name="data">
+            </label>
+            <label class="field field-estreita" id="campo-data-pagamento-detalhe">Data do pagamento
+              <input type="date" name="dataPagamento">
+            </label>
+            <label class="field" id="campo-previsao-pagamento-detalhe" style="display:none">Previsão de recebimento
+              <input type="date" name="previsaoPagamento">
+            </label>
+            <label class="field field-larga">Observações
+              <input type="text" name="observacoes" placeholder="Observações internas (opcional)">
+            </label>
+          </div>
+          <div class="form-acoes">
+            <button type="submit">Salvar alterações</button>
+            <a href="index.html#vendas" class="botao secundario">Cancelar</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel" id="painel-acoes-venda">
+        <p class="itens-label">Ações</p>
+        <div class="form-acoes">
+          <button type="button" id="btn-dar-baixa-venda-detalhe">Dar baixa</button>
+          <button type="button" id="btn-cancelar-venda-detalhe" class="perigo">Cancelar venda</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/enums.js"></script>
+<script src="js/select-enum.js"></script>
+<script src="js/select-busca.js"></script>
+<script src="js/entidade-busca.js"></script>
+<script src="js/venda-detalhe.js"></script>
+</body>
+</html>

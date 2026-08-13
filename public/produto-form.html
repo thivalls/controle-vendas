@@ -64,10 +64,20 @@
             Tipo: <strong id="tipo-produto-fixo-texto"></strong> — o tipo de um produto não pode ser alterado depois de criado.
           </p>
 
-          <!-- SIMPLES: custo, estoque e código opcional -->
+          <!-- SIMPLES: custo, estoque e código opcional (ou vincular a um SKU já existente) -->
           <div id="campos-simples">
+            <label class="checkbox-inline" id="campo-toggle-sku-existente">
+              <input type="checkbox" id="chk-sku-existente"> Vincular a um SKU já existente (em vez de criar um novo)
+            </label>
+
+            <div id="campo-sku-existente-picker" style="display:none">
+              <label class="field field-larga">Buscar SKU *
+                <div id="busca-sku-existente-produto"></div>
+              </label>
+            </div>
+
             <div class="form-inline">
-              <label class="field">Preço de custo (R$) *
+              <label class="field" id="campo-preco-custo">Preço de custo (R$) *
                 <input type="number" step="0.01" min="0" name="precoCusto" placeholder="0,00">
               </label>
               <label class="field" id="campo-estoque-inicial">Estoque inicial
@@ -78,7 +88,7 @@
               </label>
             </div>
             <label class="checkbox-inline" id="campo-lancar-caixa">
-              <input type="checkbox" name="lancarCompraNoCaixa" checked> Já paguei esse estoque agora (lança no caixa)
+              <input type="checkbox" name="lancarCompraNoCaixa"> Já paguei esse estoque agora (lança no caixa)
             </label>
 
             <p class="dica" id="dica-estoque-edicao" style="display:none">

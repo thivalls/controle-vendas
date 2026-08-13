@@ -66,7 +66,7 @@
             </label>
             <button type="submit">Registrar</button>
           </form>
-          <p class="dica">Ao registrar uma <strong>entrada</strong>, se informar o custo total pago, isso já lança automaticamente uma saída no fluxo de caixa.</p>
+          <p class="dica">Ao registrar uma <strong>entrada</strong>, se informar o custo total pago, esse valor já fica registrado para entrar no relatório.</p>
         </div>
         <h3>Histórico de movimentações</h3>
         <div class="table-wrap">
@@ -97,6 +97,12 @@
                   <option value="pago">Pago agora</option>
                   <option value="pendente">Pendente (a receber depois)</option>
                 </select>
+              </label>
+              <label class="field field-estreita">Data da venda
+                <input type="date" name="data">
+              </label>
+              <label class="field field-estreita" id="campo-data-pagamento">Data do pagamento
+                <input type="date" name="dataPagamento">
               </label>
               <label class="field" id="campo-previsao-pagamento" style="display:none">Previsão de recebimento
                 <input type="date" name="previsaoPagamento">
@@ -174,6 +180,19 @@
               <label class="field">Data da nota fiscal
                 <input type="date" name="dataNotaFiscal">
               </label>
+              <label class="field">Forma de pagamento
+                <select name="formaPagamento" id="select-forma-pagamento-pedido"></select>
+              </label>
+              <label class="field field-estreita">Quantidade de parcelas
+                <input type="number" name="qtdParcelas" min="1" step="1" value="1">
+              </label>
+              <label class="field field-estreita" id="campo-primeiro-vencimento-pedido">Data do 1º vencimento
+                <input type="date" name="primeiroVencimento">
+              </label>
+              <label class="checkbox-inline">
+                <input type="checkbox" name="naoAtualizaEstoque">
+                Não somar ao estoque (já foi lançado antes)
+              </label>
             </div>
             <p class="itens-label">SKUs do pedido</p>
             <div class="itens-header">
@@ -185,15 +204,23 @@
             <div id="itens-pedido"></div>
             <button type="button" id="add-item-pedido">+ Adicionar SKU</button>
             <div class="total-pedido">Total: <strong id="total-pedido">R$ 0,00</strong></div>
+            <p class="itens-label">Parcelas</p>
+            <div class="itens-header parcelas-header">
+              <span>Parcela</span>
+              <span>Vencimento</span>
+              <span>Valor</span>
+              <span></span>
+            </div>
+            <div id="parcelas-pedido"></div>
             <button type="submit">Finalizar Pedido</button>
           </form>
-          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado, o preço de custo é atualizado com o valor pago e uma saída é lançada no fluxo de caixa.</p>
+          <p class="dica">Ao finalizar, o estoque dos SKUs é atualizado e o preço de custo é atualizado com o valor pago. Parcelas pendentes só entram no caixa quando você der baixa nelas.</p>
         </div>
 
         <h3>Pedidos realizados</h3>
         <div class="table-wrap">
           <table id="tabela-pedidos">
-            <thead><tr><th>#</th><th>Data</th><th>Fornecedor</th><th>Nota Fiscal</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Data</th><th>Fornecedor</th><th>Nota Fiscal</th><th>Forma pgto</th><th>Total</th><th>Pagamento</th><th>Estoque</th><th>Status</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -201,22 +228,109 @@
 
       <!-- RELATORIO -->
       <section id="tab-relatorio" class="tab-content">
-        <h2>Relatório Mensal de Lucro</h2>
+        <h2>Relatório</h2>
         <div class="panel">
-          <div class="form-inline">
-            <label class="field field-estreita">Mês de referência
-              <input type="month" id="input-mes">
+          <form id="form-filtro-relatorio" class="form-inline">
+            <label class="field field-estreita">De
+              <input type="date" name="dataInicio">
             </label>
-            <label class="field field-estreita">Visão
-              <select id="select-visao-relatorio">
-                <option value="previsao">Previsão (todas as vendas do mês)</option>
-                <option value="real">Real (só o que já foi pago)</option>
+            <label class="field field-estreita">Até
+              <input type="date" name="dataFim">
+            </label>
+            <label class="field">Cliente
+              <div id="busca-cliente-relatorio"></div>
+            </label>
+            <label class="field">Status da venda
+              <select name="status">
+                <option value="">Todos</option>
+                <option value="concluido">Concluído</option>
+                <option value="cancelado">Cancelado</option>
               </select>
             </label>
-            <button id="buscar-relatorio">Buscar</button>
-          </div>
+            <label class="field">Situação do pagamento
+              <select name="statusPagamento">
+                <option value="">Todas</option>
+                <option value="pago">Pago</option>
+                <option value="pendente">Pendente</option>
+              </select>
+            </label>
+            <label class="field">Forma de pagamento
+              <select name="formaPagamento"><option value="">Todas</option></select>
+            </label>
+            <label class="field field-larga">Produtos
+              <div id="busca-produtos-relatorio"></div>
+            </label>
+            <button type="button" id="limpar-filtro-relatorio" class="secundario">Limpar filtros</button>
+          </form>
         </div>
-        <div id="relatorio-resultado" class="panel relatorio"></div>
+
+        <div id="relatorio-resumo" class="panel relatorio"></div>
+
+        <h3>Movimentações no período</h3>
+        <div class="table-wrap">
+          <table id="tabela-relatorio-vendas">
+            <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Total</th><th>Status</th><th>Pagamento</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TRANSAÇÕES (lançamentos manuais no caixa) -->
+      <section id="tab-transacoes" class="tab-content">
+        <h2>Nova Transação</h2>
+        <div class="panel">
+          <form id="form-transacao" class="form-inline">
+            <label class="field">Tipo *
+              <select name="tipo">
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </label>
+            <label class="field">Categoria
+              <input type="text" name="categoria" placeholder="Ex: Rendimento, Taxa bancária (opcional)">
+            </label>
+            <label class="field">Valor (R$) *
+              <input type="number" step="0.01" min="0.01" name="valor" placeholder="0,00" required>
+            </label>
+            <label class="field field-estreita">Data
+              <input type="date" name="data">
+            </label>
+            <label class="field field-larga">Descrição
+              <input type="text" name="descricao" placeholder="Ex: Rendimento CDB agosto (opcional)">
+            </label>
+            <button type="submit">Lançar</button>
+          </form>
+          <p class="dica">Use para lançamentos avulsos que não vêm de uma venda ou pedido — ex: rendimentos do banco, taxas, saídas isoladas com prazo mais alongado. Serve pra bater o caixa do sistema com o extrato real do banco.</p>
+        </div>
+
+        <h3>Lançamentos</h3>
+        <div class="panel">
+          <form id="form-filtro-transacoes" class="form-inline">
+            <label class="field">Tipo
+              <select name="tipo">
+                <option value="">Todos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </label>
+            <label class="field field-estreita">De
+              <input type="date" name="dataInicio">
+            </label>
+            <label class="field field-estreita">Até
+              <input type="date" name="dataFim">
+            </label>
+            <button type="button" id="limpar-filtro-transacoes" class="secundario">Limpar filtros</button>
+          </form>
+        </div>
+
+        <div id="transacoes-resumo" class="panel relatorio"></div>
+
+        <div class="table-wrap">
+          <table id="tabela-transacoes">
+            <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Origem</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
     </main>
@@ -250,6 +364,48 @@
         <button type="button" class="secundario modal-fechar">Cancelar</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="modal-novo-sku" class="modal-overlay" hidden>
+  <div class="modal-caixa">
+    <div class="modal-cabecalho">
+      <h3>Novo SKU</h3>
+      <button type="button" class="modal-fechar" aria-label="Fechar">×</button>
+    </div>
+    <form id="form-modal-sku">
+      <div class="form-inline">
+        <label class="field">Código (opcional)
+          <input type="text" name="codigo" placeholder="Ex: XPTO-001">
+        </label>
+        <label class="field field-larga">Nome *
+          <input type="text" name="nome" placeholder="Ex: Frasco 100ml" required>
+        </label>
+      </div>
+      <p class="dica">O preço de custo e o estoque desse SKU são definidos ao adicioná-lo no pedido.</p>
+      <div class="form-acoes">
+        <button type="submit">Cadastrar SKU</button>
+        <button type="button" class="secundario modal-fechar">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="modal-parcelas-pedido" class="modal-overlay" hidden>
+  <div class="modal-caixa">
+    <div class="modal-cabecalho">
+      <h3 id="modal-parcelas-titulo">Parcelas do Pedido</h3>
+      <button type="button" class="modal-fechar" aria-label="Fechar">×</button>
+    </div>
+    <div class="table-wrap">
+      <table id="tabela-modal-parcelas">
+        <thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="form-acoes">
+      <button type="button" class="secundario modal-fechar">Fechar</button>
+    </div>
   </div>
 </div>
 

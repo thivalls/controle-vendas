@@ -5,9 +5,12 @@ const campoTipoProduto = document.getElementById('campo-tipo-produto');
 const tipoProdutoFixo = document.getElementById('tipo-produto-fixo');
 const tipoProdutoFixoTexto = document.getElementById('tipo-produto-fixo-texto');
 const camposSimples = document.getElementById('campos-simples');
+const campoPrecoCusto = document.getElementById('campo-preco-custo');
 const campoEstoqueInicial = document.getElementById('campo-estoque-inicial');
 const campoLancarCaixa = document.getElementById('campo-lancar-caixa');
 const dicaEstoqueEdicao = document.getElementById('dica-estoque-edicao');
+const chkSkuExistente = document.getElementById('chk-sku-existente');
+const campoSkuExistentePicker = document.getElementById('campo-sku-existente-picker');
 const camposKit = document.getElementById('campos-kit');
 const itensKitDiv = document.getElementById('itens-kit');
 const kitCustoEstimado = document.getElementById('kit-custo-estimado');
@@ -20,6 +23,49 @@ const campoTags = criarCampoTags(document.getElementById('campo-tags'));
 let imagemAtualUrl = null;
 let skusDisponiveis = [];
 let tipoAtual = 'simples';
+let buscaSkuExistente = null;
+
+// Alterna entre "criar um SKU novo" (padrão) e "vincular um SKU já existente" — útil para
+// quando o SKU já foi criado antes (ex: direto pelo cadastro de SKU, ou num Pedido de compra)
+// e o produto que vende esse SKU ainda não existe.
+function aplicarVisibilidadeSkuExistente() {
+  const vinculando = chkSkuExistente.checked;
+  campoSkuExistentePicker.style.display = vinculando ? '' : 'none';
+  campoPrecoCusto.style.display = vinculando ? 'none' : '';
+  // Estoque inicial e "lançar no caixa" só existem na criação — em edição já ficam ocultos.
+  if (!idProduto) {
+    campoEstoqueInicial.style.display = vinculando ? 'none' : '';
+    campoLancarCaixa.style.display = vinculando ? 'none' : '';
+  }
+  formProduto.codigo.readOnly = vinculando;
+
+  if (vinculando) {
+    if (!buscaSkuExistente) {
+      buscaSkuExistente = criarBuscaSku(document.getElementById('busca-sku-existente-produto'), {
+        placeholder: 'Buscar SKU por código ou nome...',
+        onSelecionar: (sku) => {
+          formProduto.codigo.value = sku ? (sku.codigo || '') : '';
+          if (sku && dicaEstoqueEdicao.style.display !== 'none') {
+            document.getElementById('estoque-atual').textContent = sku.estoque;
+          }
+        }
+      });
+    }
+    buscaSkuExistente.definirSkus(skusDisponiveis);
+  } else {
+    buscaSkuExistente?.limpar();
+    formProduto.codigo.value = '';
+  }
+}
+
+chkSkuExistente.addEventListener('change', () => {
+  if (chkSkuExistente.checked && skusDisponiveis.length === 0) {
+    alert('Nenhum SKU cadastrado ainda para vincular.');
+    chkSkuExistente.checked = false;
+    return;
+  }
+  aplicarVisibilidadeSkuExistente();
+});
 
 function mostrarPreview(url) {
   if (url) {
@@ -204,6 +250,16 @@ formProduto.addEventListener('submit', async (e) => {
     }
   }
 
+  const vinculandoSkuExistente = tipoAtual !== 'kit' && chkSkuExistente.checked;
+  let skuExistenteId = null;
+  if (vinculandoSkuExistente) {
+    skuExistenteId = buscaSkuExistente?.obterSkuId();
+    if (!skuExistenteId) {
+      alert('Busque e selecione o SKU que deseja vincular');
+      return;
+    }
+  }
+
   const dados = new FormData();
   dados.append('nome', formProduto.nome.value);
   dados.append('precoVenda', formProduto.precoVenda.value);
@@ -212,6 +268,8 @@ formProduto.addEventListener('submit', async (e) => {
 
   if (tipoAtual === 'kit') {
     dados.append('componentes', JSON.stringify(componentesKit));
+  } else if (vinculandoSkuExistente) {
+    dados.append('skuExistenteId', skuExistenteId);
   } else {
     dados.append('codigo', formProduto.codigo.value);
     dados.append('precoCusto', formProduto.precoCusto.value);

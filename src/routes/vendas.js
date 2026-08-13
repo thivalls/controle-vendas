@@ -76,7 +76,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
-  const { clienteId, itens, formaPagamento, observacoes, statusPagamento, previsaoPagamento } = req.body;
+  const { clienteId, itens, formaPagamento, observacoes, statusPagamento, previsaoPagamento, data: dataVenda, dataPagamento: dataPagamentoBody } = req.body;
 
   if (!clienteId) return res.status(400).json({ erro: 'Cliente é obrigatório' });
   if (!Array.isArray(itens) || itens.length === 0) {
@@ -93,6 +93,22 @@ router.post('/', asyncHandler(async (req, res) => {
       return res.status(400).json({ erro: 'Previsão de recebimento inválida' });
     }
     previsaoPagamentoValor = previsaoData;
+  }
+  let dataVendaValor = new Date();
+  if (dataVenda) {
+    const dataVendaParseada = new Date(dataVenda);
+    if (Number.isNaN(dataVendaParseada.getTime())) {
+      return res.status(400).json({ erro: 'Data da venda inválida' });
+    }
+    dataVendaValor = dataVendaParseada;
+  }
+  let dataPagamentoValor = dataVendaValor;
+  if (statusPagamentoFinal === 'pago' && dataPagamentoBody) {
+    const dataPagamentoParseada = new Date(dataPagamentoBody);
+    if (Number.isNaN(dataPagamentoParseada.getTime())) {
+      return res.status(400).json({ erro: 'Data de pagamento inválida' });
+    }
+    dataPagamentoValor = dataPagamentoParseada;
   }
 
   const conn = await pool.getConnection();
@@ -178,8 +194,8 @@ router.post('/', asyncHandler(async (req, res) => {
     }
 
     const total = itensProcessados.reduce((soma, i) => soma + i.quantidade * i.precoUnitVenda, 0);
-    const data = new Date();
-    const dataPagamento = statusPagamentoFinal === 'pago' ? data : null;
+    const data = dataVendaValor;
+    const dataPagamento = statusPagamentoFinal === 'pago' ? dataPagamentoValor : null;
 
     const [vendaResult] = await conn.query(
       `INSERT INTO vendas (cliente_id, data, status, forma_pagamento, observacoes, total, status_pagamento, data_pagamento, previsao_pagamento)
@@ -219,13 +235,127 @@ router.post('/', asyncHandler(async (req, res) => {
       await conn.query(
         `INSERT INTO caixa (tipo, categoria, valor, descricao, data, venda_id)
          VALUES ('entrada', 'Venda', ?, ?, ?, ?)`,
-        [total, `Recebimento da Venda #${vendaId} - ${cliente.nome}`, data, vendaId]
+        [total, `Recebimento da Venda #${vendaId} - ${cliente.nome}`, dataPagamento, vendaId]
       );
     }
 
     await conn.commit();
     const [vendaCompleta] = await buscarVendasComItens('WHERE ven.id = ?', [vendaId]);
     res.status(201).json(vendaCompleta);
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}));
+
+// Edita campos administrativos da venda (cliente, forma de pagamento, situação, datas,
+// observações) — os itens/quantidades ficam fixos aqui (mudar isso exige cancelar e refazer,
+// já que envolveria desfazer/refazer estoque). Quando a situação de pagamento muda, reconcilia
+// o caixa: entra o recebimento se virou "pago", remove se virou "pendente" de novo.
+router.put('/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const { clienteId, formaPagamento, observacoes, statusPagamento, previsaoPagamento, data: dataVenda, dataPagamento: dataPagamentoBody } = req.body;
+
+  if (statusPagamento !== undefined && statusPagamento !== 'pago' && statusPagamento !== 'pendente') {
+    return res.status(400).json({ erro: 'Situação do pagamento deve ser "pago" ou "pendente"' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [vendaRows] = await conn.query('SELECT * FROM vendas WHERE id = ? FOR UPDATE', [id]);
+    if (vendaRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ erro: 'Venda não encontrada' });
+    }
+    const venda = vendaRows[0];
+    if (venda.status === 'cancelado') {
+      await conn.rollback();
+      return res.status(400).json({ erro: 'Venda cancelada não pode ser editada' });
+    }
+
+    const clienteIdFinal = clienteId ? Number(clienteId) : venda.cliente_id;
+    const [clienteRows] = await conn.query('SELECT * FROM clientes WHERE id = ?', [clienteIdFinal]);
+    if (clienteRows.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ erro: 'Cliente não encontrado' });
+    }
+    const cliente = clienteRows[0];
+
+    let dataVendaValor = venda.data;
+    if (dataVenda) {
+      const parsed = new Date(dataVenda);
+      if (Number.isNaN(parsed.getTime())) {
+        await conn.rollback();
+        return res.status(400).json({ erro: 'Data da venda inválida' });
+      }
+      dataVendaValor = parsed;
+    }
+
+    let previsaoPagamentoValor = venda.previsao_pagamento;
+    if (previsaoPagamento !== undefined) {
+      if (previsaoPagamento) {
+        const parsed = new Date(previsaoPagamento);
+        if (Number.isNaN(parsed.getTime())) {
+          await conn.rollback();
+          return res.status(400).json({ erro: 'Previsão de recebimento inválida' });
+        }
+        previsaoPagamentoValor = parsed;
+      } else {
+        previsaoPagamentoValor = null;
+      }
+    }
+
+    let dataPagamentoValor = venda.data_pagamento || dataVendaValor;
+    if (dataPagamentoBody) {
+      const parsed = new Date(dataPagamentoBody);
+      if (Number.isNaN(parsed.getTime())) {
+        await conn.rollback();
+        return res.status(400).json({ erro: 'Data de pagamento inválida' });
+      }
+      dataPagamentoValor = parsed;
+    }
+
+    const statusPagamentoFinal = statusPagamento || venda.status_pagamento;
+
+    if (statusPagamentoFinal !== venda.status_pagamento) {
+      if (statusPagamentoFinal === 'pago') {
+        await conn.query(
+          `INSERT INTO caixa (tipo, categoria, valor, descricao, data, venda_id)
+           VALUES ('entrada', 'Venda', ?, ?, ?, ?)`,
+          [venda.total, `Recebimento da Venda #${id} - ${cliente.nome}`, dataPagamentoValor, id]
+        );
+      } else {
+        // Voltou a "pendente": o recebimento nunca de fato aconteceu (foi marcado por engano
+        // ou precisa ser desfeito), então remove o lançamento em vez de estornar.
+        await conn.query(`DELETE FROM caixa WHERE venda_id = ? AND tipo = 'entrada'`, [id]);
+      }
+    } else if (statusPagamentoFinal === 'pago' && dataPagamentoBody) {
+      // Só a data mudou: mantém o lançamento já existente em sincronia
+      await conn.query(`UPDATE caixa SET data = ? WHERE venda_id = ? AND tipo = 'entrada'`, [dataPagamentoValor, id]);
+    }
+
+    await conn.query(
+      `UPDATE vendas SET cliente_id = ?, forma_pagamento = ?, observacoes = ?, data = ?, status_pagamento = ?, data_pagamento = ?, previsao_pagamento = ?
+       WHERE id = ?`,
+      [
+        clienteIdFinal,
+        formaPagamento !== undefined ? formaPagamento : venda.forma_pagamento,
+        observacoes !== undefined ? observacoes : venda.observacoes,
+        dataVendaValor,
+        statusPagamentoFinal,
+        statusPagamentoFinal === 'pago' ? dataPagamentoValor : null,
+        statusPagamentoFinal === 'pendente' ? previsaoPagamentoValor : null,
+        id
+      ]
+    );
+
+    await conn.commit();
+    const [vendaCompleta] = await buscarVendasComItens('WHERE ven.id = ?', [id]);
+    res.json(vendaCompleta);
   } catch (err) {
     await conn.rollback();
     throw err;

@@ -144,9 +144,10 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/', receberImagem, asyncHandler(async (req, res) => {
-  const { codigo, precoCusto, tipo, nome, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags, componentes } = req.body;
+  const { codigo, precoCusto, tipo, nome, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags, componentes, skuExistenteId } = req.body;
   const imagemUrl = req.file ? '/uploads/produtos/' + req.file.filename : null;
   const tipoFinal = tipo === 'kit' ? 'kit' : 'simples';
+  const skuExistenteIdNum = tipoFinal === 'simples' && skuExistenteId ? Number(skuExistenteId) : null;
 
   function recusar(status, mensagem) {
     excluirArquivoImagem(imagemUrl);
@@ -165,7 +166,7 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
     const { erro, skus: mapaSkus } = lerSkusDoBody(componentes);
     if (erro) return recusar(400, erro);
     componentesValidados = mapaSkus;
-  } else {
+  } else if (!skuExistenteIdNum) {
     custo = Number(precoCusto);
     if (isNaN(custo) || custo < 0) return recusar(400, 'Preço de custo deve ser um número válido');
     codigoFinal = codigo && codigo.trim() ? codigo.trim() : null;
@@ -181,8 +182,10 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
     // Produto simples sempre cria (ou reaproveita, se o nome bater) um SKU com o mesmo
     // nome do produto — o conceito de SKU fica escondido do usuário nesse fluxo. O nome
     // do SKU precisa ser único, então essa checagem também é o que evita produto duplicado.
+    // Quando vincula a um SKU já existente (skuExistenteId), nada disso se aplica: o SKU
+    // mantém seu próprio nome/código, só ganha um vínculo em produto_skus.
     let skuIdFinal = null;
-    if (tipoFinal === 'simples') {
+    if (tipoFinal === 'simples' && !skuExistenteIdNum) {
       const [nomeExistente] = await conn.query('SELECT id FROM skus WHERE nome = ?', [nomeTrim]);
       if (nomeExistente.length > 0) {
         await conn.rollback();
@@ -194,6 +197,13 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
           await conn.rollback();
           return recusar(400, `Já existe um SKU com o código "${codigoFinal}"`);
         }
+      }
+    }
+    if (skuExistenteIdNum) {
+      const [skuRows] = await conn.query('SELECT id FROM skus WHERE id = ?', [skuExistenteIdNum]);
+      if (skuRows.length === 0) {
+        await conn.rollback();
+        return recusar(400, 'SKU selecionado não foi encontrado');
       }
     }
 
@@ -213,6 +223,8 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
       for (const [skuIdComponente, quantidade] of componentesValidados) {
         await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, ?)', [produtoId, skuIdComponente, quantidade]);
       }
+    } else if (skuExistenteIdNum) {
+      await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [produtoId, skuExistenteIdNum]);
     } else {
       const [resultSku] = await conn.query(
         'INSERT INTO skus (codigo, nome, preco_custo, estoque, criado_em) VALUES (?, ?, ?, ?, ?)',
@@ -256,36 +268,47 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
     return res.status(404).json({ erro: 'Produto não encontrado' });
   }
   const atual = rows[0];
-  const { codigo, precoCusto, nome, precoVenda, tags, removerImagem, componentes } = req.body;
+  const { codigo, precoCusto, nome, precoVenda, tags, removerImagem, componentes, skuExistenteId } = req.body;
   const nomeFinal = nome !== undefined && nome.trim() ? nome.trim() : atual.nome;
+  const skuExistenteIdNum = atual.tipo === 'simples' && skuExistenteId ? Number(skuExistenteId) : null;
 
   // Valida antes de mexer em qualquer arquivo: se a atualização for rejeitada, a imagem
   // atual do produto não pode ter sido apagada no meio do caminho. Produto simples tem
   // exatamente 1 SKU vinculado (nome sincronizado com o do produto) — atualiza ele direto.
+  // Quando troca para vincular um SKU diferente (skuExistenteId), nenhum desses campos de
+  // criação (nome/código/preço de custo do SKU atual) é usado — só troca o vínculo.
   let skuAtualId = null;
   if (atual.tipo === 'simples') {
     const [skuVinculado] = await pool.query('SELECT sku_id FROM produto_skus WHERE produto_id = ?', [id]);
     skuAtualId = skuVinculado[0].sku_id;
 
-    if (nomeFinal !== atual.nome) {
-      const [nomeExistente] = await pool.query('SELECT id FROM skus WHERE nome = ? AND id != ?', [nomeFinal, skuAtualId]);
-      if (nomeExistente.length > 0) {
-        excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
-        return res.status(400).json({ erro: `Já existe um produto ou SKU com o nome "${nomeFinal}"` });
+    if (!skuExistenteIdNum) {
+      if (nomeFinal !== atual.nome) {
+        const [nomeExistente] = await pool.query('SELECT id FROM skus WHERE nome = ? AND id != ?', [nomeFinal, skuAtualId]);
+        if (nomeExistente.length > 0) {
+          excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+          return res.status(400).json({ erro: `Já existe um produto ou SKU com o nome "${nomeFinal}"` });
+        }
       }
-    }
-    if (codigo !== undefined && codigo.trim()) {
-      const [codigoExistente] = await pool.query('SELECT id FROM skus WHERE codigo = ? AND id != ?', [codigo.trim(), skuAtualId]);
-      if (codigoExistente.length > 0) {
-        excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
-        return res.status(400).json({ erro: `Já existe um SKU com o código "${codigo.trim()}"` });
+      if (codigo !== undefined && codigo.trim()) {
+        const [codigoExistente] = await pool.query('SELECT id FROM skus WHERE codigo = ? AND id != ?', [codigo.trim(), skuAtualId]);
+        if (codigoExistente.length > 0) {
+          excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+          return res.status(400).json({ erro: `Já existe um SKU com o código "${codigo.trim()}"` });
+        }
       }
-    }
-    if (precoCusto !== undefined) {
-      const custo = Number(precoCusto);
-      if (isNaN(custo) || custo < 0) {
+      if (precoCusto !== undefined) {
+        const custo = Number(precoCusto);
+        if (isNaN(custo) || custo < 0) {
+          excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+          return res.status(400).json({ erro: 'Preço de custo deve ser um número válido' });
+        }
+      }
+    } else {
+      const [skuRows] = await pool.query('SELECT id FROM skus WHERE id = ?', [skuExistenteIdNum]);
+      if (skuRows.length === 0) {
         excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
-        return res.status(400).json({ erro: 'Preço de custo deve ser um número válido' });
+        return res.status(400).json({ erro: 'SKU selecionado não foi encontrado' });
       }
     }
   }
@@ -318,7 +341,10 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    if (skuAtualId) {
+    if (skuExistenteIdNum) {
+      await conn.query('DELETE FROM produto_skus WHERE produto_id = ?', [id]);
+      await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [id, skuExistenteIdNum]);
+    } else if (skuAtualId) {
       const [skuAtual] = await conn.query('SELECT * FROM skus WHERE id = ?', [skuAtualId]);
       await conn.query(
         'UPDATE skus SET nome = ?, codigo = ?, preco_custo = ? WHERE id = ?',

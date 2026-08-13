@@ -10,8 +10,8 @@ const produtosRouter = require('./routes/produtos');
 const estoqueRouter = require('./routes/estoque');
 const vendasRouter = require('./routes/vendas');
 const pedidosRouter = require('./routes/pedidos');
-const caixaRouter = require('./routes/caixa');
 const relatoriosRouter = require('./routes/relatorios');
+const caixaRouter = require('./routes/caixa');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,8 +26,8 @@ app.use('/api/produtos', produtosRouter);
 app.use('/api/estoque', estoqueRouter);
 app.use('/api/vendas', vendasRouter);
 app.use('/api/pedidos', pedidosRouter);
-app.use('/api/caixa', caixaRouter);
 app.use('/api/relatorios', relatoriosRouter);
+app.use('/api/caixa', caixaRouter);
 
 app.use((err, req, res, next) => {
   console.error(err);
