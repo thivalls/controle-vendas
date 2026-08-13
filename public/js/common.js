@@ -48,7 +48,8 @@ const NAV_CONFIG = [
     { chave: 'pedidos', rotulo: 'Pedidos', href: 'index.html#pedidos' }
   ]},
   { grupo: 'Financeiro', chave: 'financeiro', itens: [
-    { chave: 'relatorio', rotulo: 'Relatório', href: 'index.html#relatorio' }
+    { chave: 'relatorio', rotulo: 'Relatório', href: 'index.html#relatorio' },
+    { chave: 'transacoes', rotulo: 'Transações', href: 'index.html#transacoes' }
   ]}
 ];
 

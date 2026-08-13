@@ -275,6 +275,64 @@
         </div>
       </section>
 
+      <!-- TRANSAÇÕES (lançamentos manuais no caixa) -->
+      <section id="tab-transacoes" class="tab-content">
+        <h2>Nova Transação</h2>
+        <div class="panel">
+          <form id="form-transacao" class="form-inline">
+            <label class="field">Tipo *
+              <select name="tipo">
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </label>
+            <label class="field">Categoria
+              <input type="text" name="categoria" placeholder="Ex: Rendimento, Taxa bancária (opcional)">
+            </label>
+            <label class="field">Valor (R$) *
+              <input type="number" step="0.01" min="0.01" name="valor" placeholder="0,00" required>
+            </label>
+            <label class="field field-estreita">Data
+              <input type="date" name="data">
+            </label>
+            <label class="field field-larga">Descrição
+              <input type="text" name="descricao" placeholder="Ex: Rendimento CDB agosto (opcional)">
+            </label>
+            <button type="submit">Lançar</button>
+          </form>
+          <p class="dica">Use para lançamentos avulsos que não vêm de uma venda ou pedido — ex: rendimentos do banco, taxas, saídas isoladas com prazo mais alongado. Serve pra bater o caixa do sistema com o extrato real do banco.</p>
+        </div>
+
+        <h3>Lançamentos</h3>
+        <div class="panel">
+          <form id="form-filtro-transacoes" class="form-inline">
+            <label class="field">Tipo
+              <select name="tipo">
+                <option value="">Todos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </label>
+            <label class="field field-estreita">De
+              <input type="date" name="dataInicio">
+            </label>
+            <label class="field field-estreita">Até
+              <input type="date" name="dataFim">
+            </label>
+            <button type="button" id="limpar-filtro-transacoes" class="secundario">Limpar filtros</button>
+          </form>
+        </div>
+
+        <div id="transacoes-resumo" class="panel relatorio"></div>
+
+        <div class="table-wrap">
+          <table id="tabela-transacoes">
+            <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Origem</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
     </main>
   </div>
 

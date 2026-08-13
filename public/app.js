@@ -18,7 +18,8 @@ const CARREGAR_ABA = {
   estoque: () => carregarEstoque(),
   vendas: () => carregarVendas(),
   pedidos: () => carregarPedidos(),
-  relatorio: () => carregarRelatorio()
+  relatorio: () => carregarRelatorio(),
+  transacoes: () => carregarTransacoes()
 };
 
 function ativarAba(chave) {
@@ -788,6 +789,96 @@ document.getElementById('limpar-filtro-relatorio').addEventListener('click', () 
   buscaProdutosRelatorio.limpar();
   renderRelatorio();
 });
+
+// ---------- TRANSAÇÕES (lançamentos manuais no caixa, ex: rendimento, taxa, saída avulsa) ----------
+let cacheTransacoes = [];
+const formTransacao = document.getElementById('form-transacao');
+
+function definirDataTransacaoParaHoje() {
+  formTransacao.data.value = new Date().toISOString().slice(0, 10);
+}
+definirDataTransacaoParaHoje();
+
+formTransacao.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('POST', '/caixa', {
+      tipo: formTransacao.tipo.value,
+      categoria: formTransacao.categoria.value || undefined,
+      valor: Number(formTransacao.valor.value),
+      descricao: formTransacao.descricao.value || undefined,
+      data: formTransacao.data.value || undefined
+    });
+    formTransacao.reset();
+    definirDataTransacaoParaHoje();
+    await carregarTransacoes();
+  } catch (e) { alert(e.message); }
+});
+
+async function carregarTransacoes() {
+  cacheTransacoes = await api('GET', '/caixa');
+  renderTransacoes();
+}
+
+const formFiltroTransacoes = document.getElementById('form-filtro-transacoes');
+formFiltroTransacoes.addEventListener('input', renderTransacoes);
+formFiltroTransacoes.addEventListener('change', renderTransacoes);
+document.getElementById('limpar-filtro-transacoes').addEventListener('click', () => {
+  formFiltroTransacoes.reset();
+  renderTransacoes();
+});
+
+function filtrarTransacoes() {
+  const form = formFiltroTransacoes;
+  return cacheTransacoes.filter(t => {
+    if (form.tipo.value && t.tipo !== form.tipo.value) return false;
+    if (form.dataInicio.value && t.data.slice(0, 10) < form.dataInicio.value) return false;
+    if (form.dataFim.value && t.data.slice(0, 10) > form.dataFim.value) return false;
+    return true;
+  });
+}
+
+function origemTransacao(t) {
+  if (t.vendaId) return `Venda #${t.vendaId}`;
+  if (t.pedidoId) return `Pedido #${t.pedidoId}`;
+  return 'Manual';
+}
+
+function renderTransacoes() {
+  const transacoes = filtrarTransacoes();
+
+  const entradas = transacoes.filter(t => t.tipo === 'entrada').reduce((soma, t) => soma + Number(t.valor), 0);
+  const saidas = transacoes.filter(t => t.tipo === 'saida').reduce((soma, t) => soma + Number(t.valor), 0);
+  const saldo = entradas - saidas;
+  document.getElementById('transacoes-resumo').innerHTML = `
+    <div class="linha"><span>Entradas no período</span><span>${formatarMoeda(entradas)}</span></div>
+    <div class="linha"><span>Saídas no período</span><span>${formatarMoeda(saidas)}</span></div>
+    <div class="linha lucro ${saldo >= 0 ? 'positivo' : 'negativo'}"><span>Saldo</span><span>${formatarMoeda(saldo)}</span></div>
+  `;
+
+  const tbody = document.querySelector('#tabela-transacoes tbody');
+  tbody.innerHTML = transacoes.map(t => `
+    <tr>
+      <td>${formatarData(t.data)}</td>
+      <td><span class="badge ${t.tipo === 'entrada' ? 'pago' : 'cancelado'}">${t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</span></td>
+      <td>${escaparHtml(t.categoria)}</td>
+      <td>${escaparHtml(t.descricao)}</td>
+      <td>${formatarMoeda(t.valor)}</td>
+      <td>${origemTransacao(t)}</td>
+      <td class="acoes">
+        ${t.manual ? `<button type="button" class="perigo" onclick="excluirTransacao(${t.id})">Excluir</button>` : ''}
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="7">${cacheTransacoes.length === 0 ? 'Nenhum lançamento registrado' : 'Nenhum lançamento encontrado com os filtros selecionados'}</td></tr>`;
+}
+
+window.excluirTransacao = async function (id) {
+  if (!confirm('Excluir este lançamento manual do caixa?')) return;
+  try {
+    await api('DELETE', `/caixa/${id}`);
+    await carregarTransacoes();
+  } catch (e) { alert(e.message); }
+};
 
 // ---------- INICIALIZAÇÃO ----------
 (async function init() {
