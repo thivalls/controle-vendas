@@ -1,4 +1,5 @@
 const express = require('express');
+const ExcelJS = require('exceljs');
 const { pool } = require('../db');
 const asyncHandler = require('../asyncHandler');
 
@@ -31,6 +32,40 @@ function mapMovimento(row) {
 router.get('/', asyncHandler(async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM skus ORDER BY codigo');
   res.json(rows.map(mapSku));
+}));
+
+// Export para conferência física: gera um XLSX com o estoque do sistema e uma coluna em
+// branco pra anotar o estoque real contado. É o mesmo arquivo que a página de ajuste de
+// estoque espera de volta (ver TODO). Precisa vir antes de GET /:id pra não colidir com ele.
+router.get('/exportar-estoque', asyncHandler(async (req, res) => {
+  const [rows] = await pool.query('SELECT * FROM skus ORDER BY codigo, nome');
+
+  const workbook = new ExcelJS.Workbook();
+  const planilha = workbook.addWorksheet('Estoque');
+  planilha.columns = [
+    { header: 'ID', key: 'id', width: 10 },
+    { header: 'Código', key: 'codigo', width: 18 },
+    { header: 'Nome', key: 'nome', width: 40 },
+    { header: 'Estoque sistema', key: 'estoqueSistema', width: 16 },
+    { header: 'Estoque real', key: 'estoqueReal', width: 16 }
+  ];
+  planilha.getRow(1).font = { bold: true };
+
+  for (const row of rows) {
+    planilha.addRow({
+      id: row.id,
+      codigo: row.codigo || '',
+      nome: row.nome,
+      estoqueSistema: row.estoque,
+      estoqueReal: null
+    });
+  }
+
+  const dataHoje = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="estoque-${dataHoje}.xlsx"`);
+  await workbook.xlsx.write(res);
+  res.end();
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {

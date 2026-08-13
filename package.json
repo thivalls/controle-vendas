@@ -10,6 +10,7 @@
     "up": "bash subir.sh"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "multer": "^2.2.0",
     "mysql2": "^3.11.0"

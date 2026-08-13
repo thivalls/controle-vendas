@@ -22,7 +22,10 @@
     <main>
       <div class="page-header">
         <h2>SKUs</h2>
-        <a href="sku-form.html" class="botao">+ Novo SKU</a>
+        <div class="page-header-acoes">
+          <a href="/api/skus/exportar-estoque" class="botao secundario">Exportar estoque (XLSX)</a>
+          <a href="sku-form.html" class="botao">+ Novo SKU</a>
+        </div>
       </div>
       <p class="dica">SKU é a unidade física de estoque — o que você compra e conta no depósito. Cadastre aqui os SKUs que serão usados como componente de kit sem precisar virar um produto vendável por si só. Ao criar um produto simples, o SKU já é criado junto automaticamente.</p>
       <div id="tabela-skus"></div>

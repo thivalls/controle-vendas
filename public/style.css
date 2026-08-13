@@ -597,6 +597,12 @@ tbody tr:last-child td { border-bottom: none; }
 
 .page-header h2 { margin: 0; }
 
+.page-header-acoes {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 /* ---------- LINKS ESTILIZADOS COMO BOTÃO ---------- */
 .botao {
   display: inline-flex;
