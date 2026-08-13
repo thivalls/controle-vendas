@@ -1,5 +1,6 @@
 const tabelaClientes = criarTabela(document.getElementById('tabela-clientes'), {
   colunas: [
+    { titulo: 'ID', campo: 'id' },
     { titulo: 'Nome', campo: 'nome' },
     { titulo: 'Telefone', campo: 'telefone' },
     { titulo: 'E-mail', campo: 'email' },

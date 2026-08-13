@@ -24,6 +24,7 @@ function estoqueProduto(p) {
 const tabelaProdutos = criarTabela(document.getElementById('tabela-produtos'), {
   colunas: [
     { titulo: '', render: miniaturaProduto },
+    { titulo: 'ID', campo: 'id' },
     { titulo: 'Nome', campo: 'nome' },
     { titulo: 'Cód. SKU', render: (p) => escaparHtml(p.sku || '') },
     { titulo: 'Tipo', render: badgeTipoProduto },
