@@ -339,6 +339,7 @@ function renderVendasFiltradas() {
       <td><span class="badge ${v.status}">${v.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span></td>
       <td>${formatarPagamentoVenda(v)}</td>
       <td class="acoes">
+        <button type="button" class="secundario" onclick="location.href='venda-detalhe.html?id=${v.id}'">Ver / Editar</button>
         ${v.status === 'concluido' && v.statusPagamento === 'pendente' ? `<button type="button" onclick="darBaixaVenda(${v.id})">Dar baixa</button>` : ''}
         ${v.status === 'concluido' ? `<button type="button" class="perigo" onclick="cancelarVenda(${v.id})">Cancelar</button>` : ''}
       </td>
