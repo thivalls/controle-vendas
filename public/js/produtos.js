@@ -25,6 +25,7 @@ const tabelaProdutos = criarTabela(document.getElementById('tabela-produtos'), {
   colunas: [
     { titulo: '', render: miniaturaProduto },
     { titulo: 'Nome', campo: 'nome' },
+    { titulo: 'Cód. SKU', render: (p) => escaparHtml(p.sku || '') },
     { titulo: 'Tipo', render: badgeTipoProduto },
     { titulo: 'Tags', render: tagsProduto },
     { titulo: 'Custo', render: (p) => escaparHtml(formatarMoeda(p.precoCusto)) },
