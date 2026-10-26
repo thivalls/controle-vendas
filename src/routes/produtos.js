@@ -21,6 +21,12 @@ function mapProduto(row, skusVinculados) {
   const lista = skusVinculados || [];
   const precoCusto = lista.reduce((soma, s) => soma + s.precoCusto * s.quantidade, 0);
   const estoque = lista.length === 0 ? 0 : Math.min(...lista.map(s => Math.floor(s.estoque / s.quantidade)));
+  // Fornecedor do produto é derivado dos fornecedores dos SKUs que o compõem — produto
+  // simples tem no máximo 1, kit pode reunir vários (um por componente).
+  const fornecedores = new Map();
+  for (const s of lista) {
+    if (s.fornecedorId) fornecedores.set(s.fornecedorId, s.fornecedorNome);
+  }
   return {
     id: row.id,
     tipo: row.tipo,
@@ -32,7 +38,9 @@ function mapProduto(row, skusVinculados) {
     tags: row.tags ? row.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
     criadoEm: row.criado_em,
     sku: row.tipo === 'simples' && lista[0] ? lista[0].codigo : null,
-    skus: lista
+    skus: lista,
+    fornecedorIds: [...fornecedores.keys()],
+    fornecedorNomes: [...fornecedores.values()]
   };
 }
 
@@ -41,9 +49,11 @@ async function buscarSkusPorProduto(idsProdutos) {
   if (idsProdutos.length === 0) return porProduto;
   const [rows] = await pool.query(
     `SELECT pks.produto_id, pks.sku_id, pks.quantidade,
-            s.codigo AS sku_codigo, s.nome AS sku_nome, s.preco_custo AS sku_preco_custo, s.estoque AS sku_estoque
+            s.codigo AS sku_codigo, s.nome AS sku_nome, s.preco_custo AS sku_preco_custo, s.estoque AS sku_estoque,
+            s.fornecedor_id AS sku_fornecedor_id, f.nome AS sku_fornecedor_nome
      FROM produto_skus pks
      JOIN skus s ON s.id = pks.sku_id
+     LEFT JOIN fornecedores f ON f.id = s.fornecedor_id
      WHERE pks.produto_id IN (?)
      ORDER BY pks.id`,
     [idsProdutos]
@@ -56,7 +66,9 @@ async function buscarSkusPorProduto(idsProdutos) {
       nome: row.sku_nome,
       quantidade: row.quantidade,
       precoCusto: row.sku_preco_custo,
-      estoque: row.sku_estoque
+      estoque: row.sku_estoque,
+      fornecedorId: row.sku_fornecedor_id || null,
+      fornecedorNome: row.sku_fornecedor_nome || null
     });
   }
   return porProduto;
@@ -97,6 +109,15 @@ async function validarSkusExistem(conn, idsSkus) {
   const [rows] = await conn.query('SELECT id FROM skus WHERE id IN (?)', [idsSkus]);
   if (rows.length !== idsSkus.length) return 'Um ou mais SKUs do kit não foram encontrados';
   return null;
+}
+
+// Valida e normaliza um fornecedorId opcional vindo do formulário ('' ou undefined = sem fornecedor).
+async function normalizarFornecedorId(conn, fornecedorId) {
+  if (fornecedorId === undefined || fornecedorId === null || fornecedorId === '') return { fornecedorId: null };
+  const id = Number(fornecedorId);
+  const [rows] = await conn.query('SELECT id FROM fornecedores WHERE id = ?', [id]);
+  if (rows.length === 0) return { erro: 'Fornecedor selecionado não foi encontrado' };
+  return { fornecedorId: id };
 }
 
 // ---------- Upload de imagem do produto ----------
@@ -144,7 +165,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/', receberImagem, asyncHandler(async (req, res) => {
-  const { codigo, precoCusto, tipo, nome, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags, componentes, skuExistenteId } = req.body;
+  const { codigo, precoCusto, tipo, nome, precoVenda, estoqueInicial, lancarCompraNoCaixa, tags, componentes, skuExistenteId, fornecedorId } = req.body;
   const imagemUrl = req.file ? '/uploads/produtos/' + req.file.filename : null;
   const tipoFinal = tipo === 'kit' ? 'kit' : 'simples';
   const skuExistenteIdNum = tipoFinal === 'simples' && skuExistenteId ? Number(skuExistenteId) : null;
@@ -206,6 +227,15 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
         return recusar(400, 'SKU selecionado não foi encontrado');
       }
     }
+    let fornecedorIdFinal = null;
+    if (tipoFinal === 'simples' && !skuExistenteIdNum) {
+      const { erro: erroFornecedor, fornecedorId: normalizado } = await normalizarFornecedorId(conn, fornecedorId);
+      if (erroFornecedor) {
+        await conn.rollback();
+        return recusar(400, erroFornecedor);
+      }
+      fornecedorIdFinal = normalizado;
+    }
 
     const [result] = await conn.query(
       `INSERT INTO produtos (tipo, nome, preco_venda, imagem, tags, criado_em) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -227,8 +257,8 @@ router.post('/', receberImagem, asyncHandler(async (req, res) => {
       await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [produtoId, skuExistenteIdNum]);
     } else {
       const [resultSku] = await conn.query(
-        'INSERT INTO skus (codigo, nome, preco_custo, estoque, criado_em) VALUES (?, ?, ?, ?, ?)',
-        [codigoFinal, nomeTrim, custo, estoqueInicialNum, data]
+        'INSERT INTO skus (codigo, nome, preco_custo, estoque, fornecedor_id, criado_em) VALUES (?, ?, ?, ?, ?, ?)',
+        [codigoFinal, nomeTrim, custo, estoqueInicialNum, fornecedorIdFinal, data]
       );
       skuIdFinal = resultSku.insertId;
 
@@ -268,7 +298,7 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
     return res.status(404).json({ erro: 'Produto não encontrado' });
   }
   const atual = rows[0];
-  const { codigo, precoCusto, nome, precoVenda, tags, removerImagem, componentes, skuExistenteId } = req.body;
+  const { codigo, precoCusto, nome, precoVenda, tags, removerImagem, componentes, skuExistenteId, fornecedorId } = req.body;
   const nomeFinal = nome !== undefined && nome.trim() ? nome.trim() : atual.nome;
   const skuExistenteIdNum = atual.tipo === 'simples' && skuExistenteId ? Number(skuExistenteId) : null;
 
@@ -302,6 +332,13 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
         if (isNaN(custo) || custo < 0) {
           excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
           return res.status(400).json({ erro: 'Preço de custo deve ser um número válido' });
+        }
+      }
+      if (fornecedorId !== undefined) {
+        const { erro: erroFornecedor } = await normalizarFornecedorId(pool, fornecedorId);
+        if (erroFornecedor) {
+          excluirArquivoImagem(req.file ? '/uploads/produtos/' + req.file.filename : null);
+          return res.status(400).json({ erro: erroFornecedor });
         }
       }
     } else {
@@ -346,12 +383,16 @@ router.put('/:id', receberImagem, asyncHandler(async (req, res) => {
       await conn.query('INSERT INTO produto_skus (produto_id, sku_id, quantidade) VALUES (?, ?, 1)', [id, skuExistenteIdNum]);
     } else if (skuAtualId) {
       const [skuAtual] = await conn.query('SELECT * FROM skus WHERE id = ?', [skuAtualId]);
+      const fornecedorIdFinal = fornecedorId !== undefined
+        ? (await normalizarFornecedorId(conn, fornecedorId)).fornecedorId
+        : skuAtual[0].fornecedor_id;
       await conn.query(
-        'UPDATE skus SET nome = ?, codigo = ?, preco_custo = ? WHERE id = ?',
+        'UPDATE skus SET nome = ?, codigo = ?, preco_custo = ?, fornecedor_id = ? WHERE id = ?',
         [
           nomeFinal,
           codigo !== undefined ? (codigo.trim() ? codigo.trim() : null) : skuAtual[0].codigo,
           precoCusto !== undefined ? Number(precoCusto) : skuAtual[0].preco_custo,
+          fornecedorIdFinal,
           skuAtualId
         ]
       );

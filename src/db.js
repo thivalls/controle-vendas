@@ -89,6 +89,15 @@ async function removerForeignKeySeExistir(conn, tabela, coluna) {
   }
 }
 
+async function foreignKeyExiste(conn, tabela, coluna) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS existe FROM information_schema.KEY_COLUMN_USAGE
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
+    [dbConfig.database, tabela, coluna]
+  );
+  return rows[0].existe > 0;
+}
+
 // Pagamento pendente: permite registrar a venda (e a receita/estoque) no ato,
 // mesmo quando o dinheiro só cai no caixa depois (ex: cartão com prazo de 30/45 dias).
 async function migrarColunas(conn) {
@@ -112,6 +121,15 @@ async function migrarColunas(conn) {
   await adicionarColunaSeNaoExistir(conn, 'produtos', 'tipo', "ENUM('simples', 'kit') NOT NULL DEFAULT 'simples'");
 
   await migrarParaSkuIndependente(conn);
+
+  // Fornecedor padrão/preferencial do SKU, usado no filtro de fornecedor da listagem de
+  // produtos (não deriva do histórico de pedidos — ver comentário em schema.sql).
+  await adicionarColunaSeNaoExistir(conn, 'skus', 'fornecedor_id', 'INT NULL');
+  if (!(await foreignKeyExiste(conn, 'skus', 'fornecedor_id'))) {
+    await conn.query(
+      'ALTER TABLE skus ADD CONSTRAINT fk_skus_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id) ON DELETE SET NULL'
+    );
+  }
 }
 
 // Pedidos antigos sempre foram pagos à vista na hora (o caixa já recebeu a saída na criação),

@@ -59,6 +59,7 @@ function criarBuscaFornecedor(container, opcoes = {}) {
   return {
     definirFornecedores: base.definirItens,
     obterFornecedorId: base.obterValor,
+    definirFornecedor: base.definirValor,
     limpar: base.limpar,
     destruir: base.destruir
   };

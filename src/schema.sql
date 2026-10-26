@@ -25,9 +25,13 @@ CREATE TABLE IF NOT EXISTS skus (
   nome VARCHAR(255) NOT NULL,
   preco_custo DECIMAL(10,2) NOT NULL DEFAULT 0,
   estoque INT NOT NULL DEFAULT 0,
+  -- Fornecedor padrão/preferencial deste SKU. Não deriva do histórico de pedidos de compra
+  -- porque a entrada de estoque nem sempre passa por um pedido formal.
+  fornecedor_id INT NULL,
   criado_em DATETIME NOT NULL,
   UNIQUE KEY uq_skus_codigo (codigo),
-  UNIQUE KEY uq_skus_nome (nome)
+  UNIQUE KEY uq_skus_nome (nome),
+  FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Produto é o que aparece pra venda (nome, preço de venda, imagem, tags).

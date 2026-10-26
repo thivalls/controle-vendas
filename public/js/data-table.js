@@ -11,14 +11,27 @@ function criarTabela(container, opcoes) {
     tamanhosPagina = [10, 20, 50, 100],
     tamanhoPaginaPadrao = 10,
     mensagemVazio = 'Nenhum registro encontrado',
-    acoes = []
+    acoes = [],
+    // Chave única por tabela (ex: 'tamanho-pagina-produtos') pra lembrar quantos itens por
+    // página o usuário prefere ver. Sem chave, o comportamento é o de sempre (usa o padrão).
+    chaveArmazenamentoTamanhoPagina = null
   } = opcoes;
 
   let todos = [];
   let filtrados = [];
   let termoBusca = '';
   let pagina = 1;
-  let tamanhoPagina = tamanhoPaginaPadrao;
+  let tamanhoPagina = lerTamanhoPaginaSalvo();
+
+  function lerTamanhoPaginaSalvo() {
+    if (!chaveArmazenamentoTamanhoPagina) return tamanhoPaginaPadrao;
+    const salvo = Number(localStorage.getItem(chaveArmazenamentoTamanhoPagina));
+    return tamanhosPagina.includes(salvo) ? salvo : tamanhoPaginaPadrao;
+  }
+
+  function salvarTamanhoPagina() {
+    if (chaveArmazenamentoTamanhoPagina) localStorage.setItem(chaveArmazenamentoTamanhoPagina, String(tamanhoPagina));
+  }
 
   container.innerHTML = `
     ${campoBusca ? `
@@ -54,7 +67,7 @@ function criarTabela(container, opcoes) {
   const spanPagina = container.querySelector('.tabela-pagina-atual');
   const controles = container.querySelector('.tabela-paginacao-controles');
 
-  selectTamanho.value = String(tamanhoPaginaPadrao);
+  selectTamanho.value = String(tamanhoPagina);
 
   if (inputBusca) {
     inputBusca.addEventListener('input', () => {
@@ -66,6 +79,7 @@ function criarTabela(container, opcoes) {
 
   selectTamanho.addEventListener('change', () => {
     tamanhoPagina = Number(selectTamanho.value);
+    salvarTamanhoPagina();
     pagina = 1;
     renderizar();
   });

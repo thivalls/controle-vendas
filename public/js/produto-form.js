@@ -8,6 +8,7 @@ const camposSimples = document.getElementById('campos-simples');
 const campoPrecoCusto = document.getElementById('campo-preco-custo');
 const campoEstoqueInicial = document.getElementById('campo-estoque-inicial');
 const campoLancarCaixa = document.getElementById('campo-lancar-caixa');
+const campoFornecedor = document.getElementById('campo-fornecedor');
 const dicaEstoqueEdicao = document.getElementById('dica-estoque-edicao');
 const chkSkuExistente = document.getElementById('chk-sku-existente');
 const campoSkuExistentePicker = document.getElementById('campo-sku-existente-picker');
@@ -19,6 +20,7 @@ const previewImagem = document.getElementById('produto-imagem-preview');
 const campoRemoverImagem = document.getElementById('campo-remover-imagem');
 const checkboxRemoverImagem = document.querySelector('input[name=removerImagem]');
 const campoTags = criarCampoTags(document.getElementById('campo-tags'));
+const buscaFornecedorProduto = criarBuscaFornecedor(document.getElementById('busca-fornecedor-produto'));
 
 let imagemAtualUrl = null;
 let skusDisponiveis = [];
@@ -32,6 +34,7 @@ function aplicarVisibilidadeSkuExistente() {
   const vinculando = chkSkuExistente.checked;
   campoSkuExistentePicker.style.display = vinculando ? '' : 'none';
   campoPrecoCusto.style.display = vinculando ? 'none' : '';
+  campoFornecedor.style.display = vinculando ? 'none' : '';
   // Estoque inicial e "lançar no caixa" só existem na criação — em edição já ficam ocultos.
   if (!idProduto) {
     campoEstoqueInicial.style.display = vinculando ? 'none' : '';
@@ -40,6 +43,7 @@ function aplicarVisibilidadeSkuExistente() {
   formProduto.codigo.readOnly = vinculando;
 
   if (vinculando) {
+    buscaFornecedorProduto.limpar();
     if (!buscaSkuExistente) {
       buscaSkuExistente = criarBuscaSku(document.getElementById('busca-sku-existente-produto'), {
         placeholder: 'Buscar SKU por código ou nome...',
@@ -162,8 +166,15 @@ document.getElementById('add-item-kit').addEventListener('click', () => {
 });
 
 // ---------- Carregamento ----------
+let fornecedoresDisponiveis = [];
+
 async function carregarSkusDisponiveis() {
   skusDisponiveis = await api('GET', '/skus');
+}
+
+async function carregarFornecedoresDisponiveis() {
+  fornecedoresDisponiveis = await api('GET', '/fornecedores');
+  buscaFornecedorProduto.definirFornecedores(fornecedoresDisponiveis);
 }
 
 if (idProduto) {
@@ -175,11 +186,12 @@ if (idProduto) {
   carregarProduto(idProduto);
 } else {
   carregarSkusDisponiveis();
+  carregarFornecedoresDisponiveis();
 }
 
 async function carregarProduto(id) {
   try {
-    await carregarSkusDisponiveis();
+    await Promise.all([carregarSkusDisponiveis(), carregarFornecedoresDisponiveis()]);
     const produto = await api('GET', '/produtos/' + id);
 
     formProduto.nome.value = produto.nome;
@@ -196,6 +208,10 @@ async function carregarProduto(id) {
         formProduto.codigo.value = skuAtual.codigo || '';
         formProduto.precoCusto.value = skuAtual.precoCusto;
         document.getElementById('estoque-atual').textContent = skuAtual.estoque;
+        if (skuAtual.fornecedorId) {
+          const fornecedor = fornecedoresDisponiveis.find(f => f.id === skuAtual.fornecedorId);
+          if (fornecedor) buscaFornecedorProduto.definirFornecedor(fornecedor);
+        }
       }
       dicaEstoqueEdicao.style.display = '';
     } else {
@@ -273,6 +289,7 @@ formProduto.addEventListener('submit', async (e) => {
   } else {
     dados.append('codigo', formProduto.codigo.value);
     dados.append('precoCusto', formProduto.precoCusto.value);
+    dados.append('fornecedorId', buscaFornecedorProduto.obterFornecedorId());
     if (!idProduto) {
       dados.append('estoqueInicial', formProduto.estoqueInicial.value);
       dados.append('lancarCompraNoCaixa', formProduto.lancarCompraNoCaixa.checked);
