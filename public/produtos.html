@@ -24,6 +24,13 @@
         <h2>Produtos</h2>
         <a href="produto-form.html" class="botao">+ Novo Produto</a>
       </div>
+      <!-- Movido para dentro da toolbar da tabela (ao lado da busca) via produtos.js assim que a
+           tabela é criada — fica aqui fora só para não ser apagado pelo innerHTML do criarTabela. -->
+      <div id="filtro-fornecedor-produtos" class="filtro-toolbar">
+        <span class="filtro-toolbar-label">Fornecedor</span>
+        <div id="busca-fornecedor-filtro-produtos" class="filtro-toolbar-campo"></div>
+        <button type="button" id="limpar-filtro-produtos" class="filtro-toolbar-limpar">Limpar</button>
+      </div>
       <div id="tabela-produtos"></div>
     </main>
   </div>
@@ -32,6 +39,7 @@
 
 <script src="js/common.js"></script>
 <script src="js/data-table.js"></script>
+<script src="js/multi-select-busca.js"></script>
 <script src="js/produtos.js"></script>
 </body>
 </html>

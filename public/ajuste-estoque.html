@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ajuste de estoque · Controle de Vendas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside id="sidebar" class="sidebar">
+    <nav id="nav"></nav>
+  </aside>
+
+  <div class="main-area">
+    <header>
+      <button type="button" id="toggle-sidebar" class="toggle-sidebar" aria-expanded="true" aria-controls="sidebar">Ocultar menu</button>
+      <h1>Controle de Vendas</h1>
+    </header>
+
+    <main>
+      <div class="page-header">
+        <h2>Ajuste de estoque via importação</h2>
+        <a href="skus.html" class="botao secundario">Voltar</a>
+      </div>
+
+      <div class="panel">
+        <p class="dica">
+          Exporte o estoque em <a href="skus.html">SKUs</a> → "Exportar estoque (XLSX)", preencha a coluna
+          "Estoque real" com a contagem física, e envie o arquivo abaixo. Nada é alterado no sistema até você
+          conferir a prévia e confirmar. Esse ajuste não gera nenhum lançamento no caixa.
+        </p>
+        <form id="form-upload-estoque" class="form-inline">
+          <label class="field field-larga">Planilha de contagem (.xlsx)
+            <input type="file" id="input-arquivo-estoque" accept=".xlsx">
+          </label>
+          <button type="submit">Enviar</button>
+        </form>
+      </div>
+
+      <div class="panel" id="painel-previa-estoque" hidden>
+        <h3>Prévia dos ajustes</h3>
+        <p id="resumo-previa-estoque" class="dica"></p>
+        <div class="table-wrap">
+          <table id="tabela-previa-estoque">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Estoque sistema</th>
+                <th>Estoque real</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="form-acoes">
+          <button type="button" id="btn-confirmar-ajustes" disabled>Confirmar ajustes</button>
+        </div>
+      </div>
+
+      <div class="panel" id="painel-resultado-estoque" hidden>
+        <h3>Resultado</h3>
+        <p id="resumo-resultado-estoque" class="dica"></p>
+        <div class="table-wrap">
+          <table id="tabela-resultado-estoque">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Antes</th>
+                <th>Depois</th>
+                <th>Movimento</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="form-acoes">
+          <button type="button" id="btn-novo-ajuste" class="secundario">Fazer novo ajuste</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/ajuste-estoque.js"></script>
+</body>
+</html>

@@ -36,20 +36,49 @@ const tabelaProdutos = criarTabela(document.getElementById('tabela-produtos'), {
   campoBusca: (p) => [p.sku, p.nome, ...(p.tags || [])].join(' '),
   placeholderBusca: 'Buscar por nome, SKU ou tag (ex: virilha)...',
   mensagemVazio: 'Nenhum produto cadastrado',
+  chaveArmazenamentoTamanhoPagina: 'tamanho-pagina-tabela-produtos',
   acoes: [
     { chave: 'editar', rotulo: 'Editar', aoClicar: (p) => { location.href = 'produto-form.html?id=' + p.id; } },
     { chave: 'excluir', rotulo: 'Excluir', classe: 'perigo', aoClicar: excluirProduto }
   ]
 });
 
+// O filtro de fornecedor mora ao lado da busca por texto, dentro da mesma toolbar da tabela —
+// mas essa toolbar só existe depois que criarTabela roda (ela monta o próprio HTML). Por isso
+// o filtro começa fora de #tabela-produtos no HTML e é movido para dentro aqui.
+document.querySelector('#tabela-produtos .tabela-toolbar').appendChild(document.getElementById('filtro-fornecedor-produtos'));
+
+let cacheProdutos = [];
+
+const buscaFornecedorFiltroProdutos = criarMultiSelectBusca(document.getElementById('busca-fornecedor-filtro-produtos'), {
+  placeholder: 'Buscar fornecedor para filtrar...',
+  getTextoPesquisavel: (f) => [f.nome, f.telefone, f.email].filter(Boolean).join(' '),
+  onAlterar: () => renderProdutosFiltrados()
+});
+
+function renderProdutosFiltrados() {
+  const fornecedorIds = buscaFornecedorFiltroProdutos.obterIds();
+  const produtosFiltrados = fornecedorIds.length === 0
+    ? cacheProdutos
+    : cacheProdutos.filter(p => (p.fornecedorIds || []).some(id => fornecedorIds.includes(id)));
+  tabelaProdutos.definirDados(produtosFiltrados);
+}
+
 async function carregarProdutos() {
   try {
-    const produtos = await api('GET', '/produtos');
-    tabelaProdutos.definirDados(produtos);
+    const [produtos, fornecedores] = await Promise.all([api('GET', '/produtos'), api('GET', '/fornecedores')]);
+    cacheProdutos = produtos;
+    buscaFornecedorFiltroProdutos.definirItens(fornecedores);
+    renderProdutosFiltrados();
   } catch (e) {
     alert(e.message);
   }
 }
+
+document.getElementById('limpar-filtro-produtos').addEventListener('click', () => {
+  buscaFornecedorFiltroProdutos.limpar();
+  renderProdutosFiltrados();
+});
 
 async function excluirProduto(produto) {
   if (!confirm(`Excluir o produto "${produto.nome}"?`)) return;

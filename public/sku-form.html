@@ -39,6 +39,9 @@
             <label class="field" id="campo-estoque-inicial">Estoque inicial
               <input type="number" step="1" min="0" name="estoqueInicial" placeholder="0">
             </label>
+            <label class="field field-larga">Fornecedor (opcional)
+              <div id="busca-fornecedor-sku"></div>
+            </label>
           </div>
           <label class="checkbox-inline" id="campo-lancar-caixa">
             <input type="checkbox" name="lancarCompraNoCaixa"> Já paguei esse estoque agora (lança no caixa)
@@ -59,6 +62,8 @@
 </div>
 
 <script src="js/common.js"></script>
+<script src="js/select-busca.js"></script>
+<script src="js/entidade-busca.js"></script>
 <script src="js/sku-form.js"></script>
 </body>
 </html>

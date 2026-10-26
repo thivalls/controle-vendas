@@ -9,6 +9,7 @@ const tabelaClientes = criarTabela(document.getElementById('tabela-clientes'), {
   campoBusca: (c) => [c.nome, c.telefone, c.email, c.endereco].join(' '),
   placeholderBusca: 'Buscar por nome, telefone, e-mail ou endereço...',
   mensagemVazio: 'Nenhum cliente cadastrado',
+  chaveArmazenamentoTamanhoPagina: 'tamanho-pagina-tabela-clientes',
   acoes: [
     { chave: 'editar', rotulo: 'Editar', aoClicar: (c) => { location.href = 'cliente-form.html?id=' + c.id; } },
     { chave: 'excluir', rotulo: 'Excluir', classe: 'perigo', aoClicar: excluirCliente }

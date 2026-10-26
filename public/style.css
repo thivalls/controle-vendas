@@ -384,6 +384,10 @@ th {
 tbody tr:hover { background: var(--surface-alt); }
 tbody tr:last-child td { border-bottom: none; }
 
+/* Linha de menor relevância numa tabela de conferência (ex: "sem alteração" ou "ignorado"
+   na prévia de ajuste de estoque) — visível, mas claramente secundária às linhas em destaque. */
+tr.linha-discreta td { color: var(--text-subtle); }
+
 /* ---------- NOTAS / DICAS ---------- */
 .dica {
   font-size: 0.82rem;
@@ -639,11 +643,19 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 /* ---------- TABELA: BUSCA E PAGINAÇÃO ---------- */
-.tabela-toolbar { margin-bottom: 0.75rem; }
+.tabela-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
 
 .tabela-busca {
   width: 100%;
   max-width: 340px;
+  flex: 1 1 220px;
 }
 
 .tabela-vazio {
@@ -937,6 +949,47 @@ tbody tr:last-child td { border-bottom: none; }
   min-width: 140px;
   padding: 0.15rem;
   background: transparent;
+}
+
+/* Filtro rápido embutido na toolbar de uma tabela (ex: fornecedor em Produtos) — fica ao
+   lado da busca por texto em vez de um painel separado, já que é só 1 campo. */
+.filtro-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 260px;
+  max-width: 380px;
+  justify-content: flex-end;
+}
+
+.filtro-toolbar-label {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.filtro-toolbar-campo {
+  flex: 1 1 auto;
+  min-width: 170px;
+}
+
+.filtro-toolbar-limpar {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.1rem;
+  cursor: pointer;
+}
+
+.filtro-toolbar-limpar:hover { color: var(--danger); }
+
+@media (max-width: 720px) {
+  .filtro-toolbar { max-width: none; flex-basis: 100%; justify-content: flex-start; }
 }
 
 /* Produto: miniatura + estoque na linha do resultado (além do padrão acima) */

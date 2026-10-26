@@ -8,6 +8,7 @@ const tabelaFornecedores = criarTabela(document.getElementById('tabela-fornecedo
   campoBusca: (f) => [f.nome, f.telefone, f.email, f.endereco].join(' '),
   placeholderBusca: 'Buscar por nome, telefone, e-mail ou endereço...',
   mensagemVazio: 'Nenhum fornecedor cadastrado',
+  chaveArmazenamentoTamanhoPagina: 'tamanho-pagina-tabela-fornecedores',
   acoes: [
     { chave: 'editar', rotulo: 'Editar', aoClicar: (f) => { location.href = 'fornecedor-form.html?id=' + f.id; } },
     { chave: 'excluir', rotulo: 'Excluir', classe: 'perigo', aoClicar: excluirFornecedor }

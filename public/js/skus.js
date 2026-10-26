@@ -8,6 +8,7 @@ const tabelaSkus = criarTabela(document.getElementById('tabela-skus'), {
   campoBusca: (s) => [s.codigo, s.nome].join(' '),
   placeholderBusca: 'Buscar por código ou nome...',
   mensagemVazio: 'Nenhum SKU cadastrado',
+  chaveArmazenamentoTamanhoPagina: 'tamanho-pagina-tabela-skus',
   acoes: [
     { chave: 'editar', rotulo: 'Editar', aoClicar: (s) => { location.href = 'sku-form.html?id=' + s.id; } },
     { chave: 'excluir', rotulo: 'Excluir', classe: 'perigo', aoClicar: excluirSku }
